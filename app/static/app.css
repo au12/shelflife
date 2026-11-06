@@ -77,7 +77,18 @@ button, input, select { font: inherit; color: inherit; }
 .btn.icon { padding: 7px; border-color: transparent; }
 .btn.small { padding: 4px 10px; font-size: 13px; }
 .btn.warn { background: transparent; color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+.btn.danger { background: var(--danger); color: #2a1310; }
 .btn:disabled { opacity: .5; cursor: default; }
+
+/* toggle switch */
+.switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; color: var(--muted); }
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.switch .knob { position: relative; width: 34px; height: 20px; border-radius: 10px; background: var(--line); transition: background .15s; flex: none; }
+.switch .knob::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--text); transition: transform .15s; }
+.switch input:checked + .knob { background: var(--fresh); }
+.switch input:checked + .knob::after { transform: translateX(14px); background: #13201a; }
+.switch input:focus-visible + .knob { outline: 2px solid var(--accent); outline-offset: 2px; }
+.switch input:disabled + .knob { opacity: .5; }
 
 select, input[type=search], input[type=number], input[type=text] {
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-s);
@@ -207,6 +218,10 @@ input::placeholder { color: var(--faint); }
 .facts div { background: var(--surface); padding: 10px 12px; }
 .facts dt { font-size: 12.5px; color: var(--muted); }
 .facts dd { margin: 2px 0 0; font-weight: 500; }
+.d-arr { margin-top: 12px; }
+.arr-note { margin: 0; color: var(--muted); font-size: 14px; }
+.arr-note.is-err { color: var(--danger); }
+td.mon, th.mon { text-align: center; }
 .keepnote { margin-top: 14px; padding: 12px 14px; border-radius: var(--radius-m); border: 1px solid color-mix(in srgb, var(--fresh) 40%, transparent); background: color-mix(in srgb, var(--fresh) 8%, transparent); }
 .keepnote p { margin: 0 0 8px; }
 .keepnote .row2 { display: flex; gap: 8px; }
@@ -250,6 +265,22 @@ legend { font-weight: 600; margin-bottom: 4px; padding: 0; }
 .inline { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; flex-wrap: wrap; }
 .inline input { width: 80px; }
 .settings-actions { display: flex; align-items: center; gap: 8px; }
+.integ { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14px; }
+.integ b { font-weight: 600; margin-right: 6px; }
+.integ .good { color: var(--fresh); }
+.integ .bad { color: var(--danger); }
+.integ .muted { color: var(--muted); }
+.del h2 { font-size: 22px; }
+.del p { color: var(--muted); margin: 0 0 14px; }
+.del .check { color: var(--text); font-size: 14px; margin: 4px 0 10px; align-items: flex-start; }
+.del .check input { margin-top: 3px; }
+.del-err { color: var(--danger); min-height: 1em; margin: 4px 0 10px !important; }
+.choices { display: grid; gap: 8px; margin-bottom: 14px; }
+.choice { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-m); cursor: pointer; }
+.choice:has(input:checked) { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 7%, transparent); }
+.choice input { accent-color: var(--danger); margin-top: 4px; }
+.choice span { color: var(--muted); font-size: 14px; }
+.choice b { display: block; color: var(--text); font-weight: 600; font-size: 15px; margin-bottom: 2px; }
 .version { color: var(--faint); font-size: 12.5px; margin-right: auto; }
 
 .toast {
@@ -297,7 +328,7 @@ legend { font-weight: 600; margin-bottom: 4px; padding: 0; }
   .row .plays { justify-self: end; }
   .row .plays .who { display: inline; font-size: 13px; }
   .row .plays .who::before { content: " · "; }
-  .season-bar, td .ago, .eps { display: none; }
+  .season-bar, td .ago, .eps, .pl { display: none; }
   th, td { padding: 8px 10px; }
   .keep li { grid-template-columns: 40px minmax(0, 1fr) auto; padding: 10px 14px; }
   .keep li .note { grid-column: 2 / -1; }

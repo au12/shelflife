@@ -154,6 +154,10 @@
           <input type="number" id="sMin" min="0" max="600" step="1" inputmode="numeric"> minutes</label>
       </fieldset>
       <fieldset>
+        <legend>Connections</legend>
+        <div id="sInteg"></div>
+      </fieldset>
+      <fieldset>
         <legend>Sync</legend>
         <div id="sSync" class="hint"></div>
       </fieldset>
@@ -161,6 +165,18 @@
         <span class="version" id="sVersion"></span>
         <button class="btn ghost" value="cancel">Cancel</button>
         <button class="btn" id="sSave" value="save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="settings del" id="delDlg" aria-labelledby="delBody">
+    <form method="dialog" class="settings-inner">
+      <div id="delBody"></div>
+      <p class="del-err" id="delErr" role="alert"></p>
+      <div class="settings-actions">
+        <span class="version"></span>
+        <button class="btn ghost" value="cancel" formnovalidate>Cancel</button>
+        <button class="btn danger" id="delGo">Delete</button>
       </div>
     </form>
   </dialog>

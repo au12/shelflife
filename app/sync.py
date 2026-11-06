@@ -2,7 +2,7 @@ import asyncio
 import logging
 import time
 
-from . import config, db
+from . import arr, config, db
 from .clients import ApiError, Plex, Tautulli, _int, plex_media_size
 
 log = logging.getLogger("shelflife.sync")
@@ -74,6 +74,8 @@ async def run_sync() -> None:
                 items += li
                 seasons += ls
 
+            items, seasons = _drop_deleted(items, seasons)
+
             _set("Reading watch history")
             history = await _history(t)
 
@@ -115,6 +117,30 @@ async def run_sync() -> None:
             await t.close()
             if plex:
                 await plex.close()
+
+
+def _drop_deleted(items: list[dict], seasons: list[dict]):
+    """Leave out anything deleted through Shelflife that Plex hasn't caught up with yet."""
+    hidden = arr.hidden_keys()
+    if not hidden:
+        return items, seasons
+    gone_seasons = {s["rating_key"] for s in seasons if s["rating_key"] in hidden}
+    seasons = [s for s in seasons if s["rating_key"] not in hidden and s["show_key"] not in hidden]
+    by_show: dict[int, list[dict]] = {}
+    for s in seasons:
+        by_show.setdefault(s["show_key"], []).append(s)
+    kept = []
+    for it in items:
+        if it["rating_key"] in hidden:
+            continue
+        if it["kind"] == "show" and gone_seasons:
+            mine = by_show.get(it["rating_key"], [])
+            if not mine and it["season_count"]:
+                continue
+            it.update(size=sum(s["size"] for s in mine), season_count=len(mine),
+                      episode_count=sum(s["episode_count"] for s in mine))
+        kept.append(it)
+    return kept, seasons
 
 
 # ---------------------------------------------------------------- inventories

@@ -81,6 +81,23 @@ CREATE TABLE IF NOT EXISTS exclusions (
     created_at  INTEGER
 );
 
+-- Which Sonarr series / Radarr movie a Plex item maps to
+CREATE TABLE IF NOT EXISTS arr_links (
+    rating_key  INTEGER PRIMARY KEY,
+    service     TEXT,
+    arr_id      INTEGER,
+    checked_at  INTEGER
+);
+
+-- Titles deleted through Shelflife, hidden until Plex notices the files are gone
+CREATE TABLE IF NOT EXISTS deleted (
+    rating_key  INTEGER PRIMARY KEY,
+    kind        TEXT,
+    title       TEXT,
+    size        INTEGER,
+    deleted_at  INTEGER
+);
+
 CREATE TABLE IF NOT EXISTS kv (
     key   TEXT PRIMARY KEY,
     value TEXT

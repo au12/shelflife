@@ -12,7 +12,7 @@ from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import config, db, sync
+from . import arr, config, db, sync
 from .clients import ApiError, Tautulli
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -104,6 +104,7 @@ def status():
         "sync": {**sync.state, "last_success": sync.state["last_success"] or last.get("at")},
         "size_source": sync.state["size_source"] or last.get("size_source"),
         "plex_direct": bool(config.PLEX_TOKEN),
+        "integrations": {"plex": bool(config.PLEX_TOKEN), **arr.enabled()},
         "interval_hours": config.SYNC_INTERVAL_HOURS,
         "server": {"identifier": server.get("identifier"), "name": server.get("name")},
         "counts": last,
@@ -201,7 +202,7 @@ def item(rating_key: int):
     plex_key = it.get("show_key") if it["kind"] == "season" else rating_key
     it["plex_url"] = (
         f"https://app.plex.tv/desktop/#!/server/{server['identifier']}/details?key=%2Flibrary%2Fmetadata%2F{plex_key}"
-        if server.get("identifier") else None)
+        if server.get("identifier") and config.PLEX_TOKEN else None)
     return {"item": it, "seasons": seasons, "history": history}
 
 
@@ -279,6 +280,136 @@ def remove_exclusion(rating_key: int):
     with db.tx() as c:
         c.execute("DELETE FROM exclusions WHERE rating_key=?", (rating_key,))
     return {"ok": True}
+
+
+# ---------------------------------------------------------------- Sonarr / Radarr
+
+def _kept(rating_key: int) -> str | None:
+    """Title of the keep-list entry protecting this item (itself, or its show for a season)."""
+    rows = db.query(
+        "SELECT e.title FROM exclusions e WHERE e.rating_key=? OR e.rating_key=(SELECT show_key FROM seasons "
+        "WHERE rating_key=?)", (rating_key, rating_key))
+    return rows[0]["title"] if rows else None
+
+
+async def _resolve(rating_key: int):
+    try:
+        client, kind, obj, season = await arr.resolve(rating_key)
+    except arr.NotInLibrary as e:
+        raise HTTPException(404, str(e))
+    except ApiError as e:
+        raise HTTPException(502, str(e))
+    return client, kind, obj, season
+
+
+@app.get("/api/arr/{rating_key}")
+async def arr_info(rating_key: int):
+    client, kind, obj, season = await _resolve(rating_key)
+    service = "radarr" if kind == "movie" else "sonarr"
+    if not client:
+        return {"service": service, "enabled": False}
+    try:
+        if not obj:
+            return {"service": service, "enabled": True, "matched": False}
+        return {"enabled": True, "matched": True, "kept": bool(_kept(rating_key)),
+                **arr.describe(client, kind, obj, season)}
+    finally:
+        await client.close()
+
+
+@app.post("/api/arr/{rating_key}/delete")
+async def arr_delete(rating_key: int, body: dict = Body(default={})):
+    """mode: 'remove' (take the movie/series out of Radarr/Sonarr and delete its files)
+    or 'files' (Sonarr only: delete episode files, keep the series for future episodes)."""
+    mode = body.get("mode", "remove")
+    exclusion = bool(body.get("exclusion", True))
+    unmonitor = bool(body.get("unmonitor", True))
+    if _kept(rating_key):
+        raise HTTPException(409, "This title is on your keep list. Stop keeping it first.")
+    client, kind, obj, season = await _resolve(rating_key)
+    if not client:
+        raise HTTPException(400, f"{'Radarr' if kind == 'movie' else 'Sonarr'} isn't set up")
+    try:
+        if not obj:
+            raise HTTPException(404, f"Couldn't find this title in {client.name}")
+        target = db.query("SELECT title, size FROM items WHERE rating_key=? UNION ALL "
+                          "SELECT title, size FROM seasons WHERE rating_key=?", (rating_key, rating_key))
+        title, size = (target[0]["title"], target[0]["size"]) if target else (obj.get("title"), 0)
+        try:
+            if kind == "movie":
+                await client.req("DELETE", f"/movie/{obj['id']}",
+                                 params={"deleteFiles": "true", "addImportExclusion": str(exclusion).lower()})
+                arr.forget_locally([rating_key], "movie", title, size)
+                return {"ok": True, "message": f"Deleted {obj.get('title')} from Radarr", "freed": size}
+
+            show_key = rating_key if season is None else \
+                db.query("SELECT show_key FROM seasons WHERE rating_key=?", (rating_key,))[0]["show_key"]
+            season_keys = [r["rating_key"] for r in db.query(
+                "SELECT rating_key FROM seasons WHERE show_key=?", (show_key,))]
+            show_size = (db.query("SELECT size FROM items WHERE rating_key=?", (show_key,)) or [{"size": size}])[0]["size"]
+
+            if season is not None:  # one season: always "delete files, keep the series"
+                res = await arr.delete_episode_files(client, obj, season=season, unmonitor=unmonitor)
+                arr.forget_locally([rating_key], "season", title, size)
+                return {"ok": True, "message": f"Deleted {res['files']} episode files from {obj.get('title')} "
+                                               f"season {season}", **res}
+            if mode == "remove":
+                await client.req("DELETE", f"/series/{obj['id']}",
+                                 params={"deleteFiles": "true", "addImportListExclusion": str(exclusion).lower()})
+                arr.forget_locally([show_key] + season_keys, "show", title, show_size)
+                return {"ok": True, "message": f"Removed {obj.get('title')} from Sonarr", "freed": show_size}
+            if mode == "files":
+                res = await arr.delete_episode_files(client, obj, season=None, unmonitor=unmonitor)
+                # Only the seasons are hidden, so the show comes back as soon as Plex has new episodes.
+                arr.forget_locally(season_keys, "season", title, show_size)
+                with db.tx() as c:
+                    c.execute("DELETE FROM items WHERE rating_key=?", (show_key,))
+                return {"ok": True, "message": f"Deleted {res['files']} episode files from {obj.get('title')}; "
+                                               f"it stays in Sonarr for new episodes", **res}
+            raise HTTPException(400, "Unknown delete mode")
+        except ApiError as e:
+            raise HTTPException(502, str(e))
+    finally:
+        await client.close()
+
+
+@app.put("/api/arr/{rating_key}/monitor")
+async def arr_monitor(rating_key: int, body: dict = Body(...)):
+    """Sonarr monitoring. season omitted = the series itself; season=N = that season."""
+    client, kind, obj, _ = await _resolve(rating_key)
+    if not client or kind != "show":
+        raise HTTPException(400, "Monitoring changes need Sonarr and a TV show")
+    try:
+        if not obj:
+            raise HTTPException(404, "Couldn't find this show in Sonarr")
+        season = body.get("season")
+        try:
+            updated = await arr.set_monitor(client, obj["id"], bool(body.get("monitored")),
+                                            None if season is None else int(season))
+        except ApiError as e:
+            raise HTTPException(502, str(e))
+        return arr.describe(client, kind, updated or obj, None)
+    finally:
+        await client.close()
+
+
+@app.get("/api/integrations")
+async def integrations():
+    out = {}
+    for name, factory in (("sonarr", arr.sonarr), ("radarr", arr.radarr)):
+        client = factory()
+        if not client:
+            out[name] = {"enabled": False}
+            continue
+        try:
+            st = await client.req("GET", "/system/status")
+            out[name] = {"enabled": True, "ok": True, "version": (st or {}).get("version")}
+        except ApiError as e:
+            out[name] = {"enabled": True, "ok": False, "error": str(e)}
+        finally:
+            await client.close()
+    out["plex"] = {"enabled": bool(config.PLEX_TOKEN)}
+    return out
 
 
 # ---------------------------------------------------------------- posters

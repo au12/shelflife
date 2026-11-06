@@ -182,6 +182,11 @@ def api(request: Request):
         start, length = int(q.get("start", 0)), int(q.get("length", 25))
         return ok({"data": history[start:start + length], "recordsTotal": len(history),
                    "recordsFiltered": len(history)})
+    if cmd == "get_metadata":
+        rk = int(q.get("rating_key"))
+        d = items.get(rk) or seasons.get(rk) or {}
+        return ok({"rating_key": str(rk), "title": d.get("title", ""), "guid": f"plex://item/{rk}",
+                   "guids": guids_for(rk)})
     if cmd == "pms_image_proxy":
         return Response(poster(q.get("img", ""), int(q.get("width", 120)), int(q.get("height", 180))),
                         media_type="image/jpeg")
@@ -248,6 +253,196 @@ def plex_all(sid: int, request: Request):
     start, size = int(q.get("X-Plex-Container-Start", 0)), int(q.get("X-Plex-Container-Size", 50))
     return {"MediaContainer": {"totalSize": len(rows), "size": len(rows[start:start + size]),
                                "Metadata": rows[start:start + size]}}
+
+
+# ---- Plex single-item metadata ---------------------------------------------
+
+def guids_for(rk):
+    it = items.get(rk)
+    if not it:
+        return []
+    if it["media_type"] == "movie":
+        return [f"imdb://tt{rk:07d}", f"tmdb://{rk + 100000}"]
+    return [f"tvdb://{rk + 200000}", f"tmdb://{rk + 300000}"]
+
+
+@app.get("/library/metadata/{rk}")
+def plex_metadata(rk: int):
+    return {"MediaContainer": {"Metadata": [{"ratingKey": str(rk), "guid": f"plex://item/{rk}",
+                                             "Guid": [{"id": g} for g in guids_for(rk)]}]}}
+
+
+# ---- Radarr / Sonarr (mounted at /radarr and /sonarr) ----------------------
+
+from datetime import datetime, timezone  # noqa: E402
+from fastapi import HTTPException  # noqa: E402
+
+
+def iso(ts):
+    return datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def slug(t):
+    return "".join(c if c.isalnum() else "-" for c in t.lower()).strip("-")
+
+
+radarr_movies = {}
+for rk, it in items.items():
+    if it["media_type"] == "movie" and rk % 11:  # a few movies aren't in Radarr
+        mid = len(radarr_movies) + 1
+        radarr_movies[mid] = {"id": mid, "title": it["title"], "year": it["year"], "tmdbId": rk + 100000,
+                              "imdbId": f"tt{rk:07d}", "titleSlug": f"{slug(it['title'])}-{rk + 100000}",
+                              "monitored": True, "hasFile": True, "sizeOnDisk": it["file_size"]}
+
+sonarr_series, sonarr_eps, sonarr_files = {}, {}, {}
+for rk, it in items.items():
+    if it["media_type"] != "show":
+        continue
+    sid = len(sonarr_series) + 1
+    my_seasons = sorted((sv for sv in seasons.values() if sv["parent_rating_key"] == rk), key=lambda x: x["media_index"])
+    sonarr_series[sid] = {"id": sid, "title": it["title"], "year": it["year"], "tvdbId": rk + 200000,
+                          "titleSlug": slug(it["title"]), "monitored": True,
+                          "status": "continuing" if sid % 3 == 0 else "ended",
+                          "seasons": [{"seasonNumber": sv["media_index"], "monitored": True} for sv in my_seasons]}
+    for sv in my_seasons:
+        for e in sorted((e for e in episodes.values() if e["parent_rating_key"] == sv["rating_key"]),
+                        key=lambda e: e["media_index"]):
+            fid = len(sonarr_files) + 1
+            sonarr_files[fid] = {"id": fid, "seriesId": sid, "seasonNumber": sv["media_index"], "size": e["file_size"]}
+            eid = len(sonarr_eps) + 1
+            sonarr_eps[eid] = {"id": eid, "seriesId": sid, "seasonNumber": sv["media_index"],
+                               "episodeNumber": e["media_index"], "airDateUtc": iso(sv["added_at"] - 86400),
+                               "monitored": True, "hasFile": True, "episodeFileId": fid}
+    if sonarr_series[sid]["status"] == "continuing" and my_seasons:
+        last = my_seasons[-1]["media_index"]
+        for n in range(2):  # upcoming episodes, not on disk yet
+            eid = len(sonarr_eps) + 1
+            sonarr_eps[eid] = {"id": eid, "seriesId": sid, "seasonNumber": last, "episodeNumber": 90 + n,
+                               "airDateUtc": iso(NOW + (n + 1) * 7 * DAY), "monitored": True, "hasFile": False,
+                               "episodeFileId": 0}
+
+
+def series_out(s):
+    out = dict(s)
+    out["seasons"] = []
+    for sn in s["seasons"]:
+        files = [f for f in sonarr_files.values() if f["seriesId"] == s["id"] and f["seasonNumber"] == sn["seasonNumber"]]
+        eps = [e for e in sonarr_eps.values() if e["seriesId"] == s["id"] and e["seasonNumber"] == sn["seasonNumber"]]
+        out["seasons"].append({**sn, "statistics": {"episodeFileCount": len(files), "totalEpisodeCount": len(eps),
+                                                   "sizeOnDisk": sum(f["size"] for f in files)}})
+    return out
+
+
+def need_key(request: Request):
+    if not request.headers.get("x-api-key"):
+        raise HTTPException(401)
+
+
+@app.get("/{svc}/api/v3/system/status")
+def arr_status(svc: str, request: Request):
+    need_key(request)
+    return {"appName": svc.title(), "version": "4.0.mock"}
+
+
+@app.get("/radarr/api/v3/movie")
+def radarr_list(request: Request, tmdbId: int | None = None):
+    need_key(request)
+    return [m for m in radarr_movies.values() if tmdbId is None or m["tmdbId"] == tmdbId]
+
+
+@app.get("/radarr/api/v3/movie/{mid}")
+def radarr_get(mid: int, request: Request):
+    need_key(request)
+    if mid not in radarr_movies:
+        raise HTTPException(404)
+    return radarr_movies[mid]
+
+
+@app.delete("/radarr/api/v3/movie/{mid}")
+def radarr_delete(mid: int, request: Request):
+    need_key(request)
+    m = radarr_movies.pop(mid, None)
+    if not m:
+        raise HTTPException(404)
+    rk = m["tmdbId"] - 100000
+    items.pop(rk, None)
+    print("RADARR delete", m["title"], dict(request.query_params), flush=True)
+    return {}
+
+
+@app.get("/sonarr/api/v3/series")
+def sonarr_list(request: Request, tvdbId: int | None = None):
+    need_key(request)
+    return [series_out(s) for s in sonarr_series.values() if tvdbId is None or s["tvdbId"] == tvdbId]
+
+
+@app.get("/sonarr/api/v3/series/{sid}")
+def sonarr_get(sid: int, request: Request):
+    need_key(request)
+    if sid not in sonarr_series:
+        raise HTTPException(404)
+    return series_out(sonarr_series[sid])
+
+
+@app.put("/sonarr/api/v3/series/{sid}")
+async def sonarr_put(sid: int, request: Request):
+    need_key(request)
+    body = await request.json()
+    s = sonarr_series[sid]
+    s["monitored"] = body["monitored"]
+    for sn in body["seasons"]:
+        for mine in s["seasons"]:
+            if mine["seasonNumber"] == sn["seasonNumber"] and mine["monitored"] != sn["monitored"]:
+                mine["monitored"] = sn["monitored"]
+                for e in sonarr_eps.values():
+                    if e["seriesId"] == sid and e["seasonNumber"] == sn["seasonNumber"]:
+                        e["monitored"] = sn["monitored"]
+    print("SONARR put series", s["title"], s["monitored"], [(x["seasonNumber"], x["monitored"]) for x in s["seasons"]], flush=True)
+    return series_out(s)
+
+
+@app.delete("/sonarr/api/v3/series/{sid}")
+def sonarr_delete(sid: int, request: Request):
+    need_key(request)
+    s = sonarr_series.pop(sid)
+    items.pop(s["tvdbId"] - 200000, None)
+    print("SONARR delete series", s["title"], dict(request.query_params), flush=True)
+    return {}
+
+
+@app.get("/sonarr/api/v3/episodefile")
+def sonarr_files_list(seriesId: int, request: Request):
+    need_key(request)
+    return [f for f in sonarr_files.values() if f["seriesId"] == seriesId]
+
+
+@app.delete("/sonarr/api/v3/episodefile/bulk")
+async def sonarr_files_bulk(request: Request):
+    need_key(request)
+    ids = (await request.json())["episodeFileIds"]
+    for fid in ids:
+        sonarr_files.pop(fid, None)
+        for e in sonarr_eps.values():
+            if e["episodeFileId"] == fid:
+                e["hasFile"], e["episodeFileId"] = False, 0
+    print("SONARR delete files", len(ids), flush=True)
+    return {}
+
+
+@app.get("/sonarr/api/v3/episode")
+def sonarr_eps_list(seriesId: int, request: Request):
+    need_key(request)
+    return [e for e in sonarr_eps.values() if e["seriesId"] == seriesId]
+
+
+@app.put("/sonarr/api/v3/episode/monitor")
+async def sonarr_eps_monitor(request: Request):
+    need_key(request)
+    body = await request.json()
+    for eid in body["episodeIds"]:
+        sonarr_eps[eid]["monitored"] = body["monitored"]
+    print("SONARR episode monitor", len(body["episodeIds"]), body["monitored"], flush=True)
+    return {}
 
 
 if __name__ == "__main__":

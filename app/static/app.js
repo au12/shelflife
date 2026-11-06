@@ -373,14 +373,29 @@ async function openDetail(rk, push = false) {
   drawer.classList.add("is-open");
   drawer.setAttribute("aria-hidden", "false");
   $(".drawer-panel").focus();
+  S.arr = null;
   try {
     const d = await api(`/api/item/${rk}`);
+    const svc = d.item.kind === "movie" ? "radarr" : "sonarr";
+    if (S.status && S.status.integrations && S.status.integrations[svc]) S.arr = { rk, loading: true };
     renderDetail(d);
+    if (S.arr) loadArr(rk);
   } catch (e) {
     $("#dBody").innerHTML = `<p class="hint">Couldn't load this title: ${esc(e.message)}</p>`;
   }
   $("#dBack").hidden = S.stack.length < 2;
 }
+
+async function loadArr(rk) {
+  let info;
+  try { info = await api(`/api/arr/${rk}`); } catch (e) { info = { error: e.message }; }
+  if (!S.detail || S.detail.item.rating_key !== rk) return;
+  S.arr = { rk, ...info };
+  renderDetail(S.detail);
+}
+
+const arrFor = (it) => (S.arr && S.arr.rk === it.rating_key ? S.arr : null);
+const SVC = { radarr: "Radarr", sonarr: "Sonarr" };
 
 function closeDetail() {
   const drawer = $("#drawer");
@@ -433,6 +448,29 @@ function renderDetail(d) {
       ? `<div class="keepnote"><p>The whole show is on your keep list, so this season is hidden from the cull list too.</p></div>`
       : "";
 
+  const svc = it.kind === "movie" ? "radarr" : "sonarr";
+  const A = arrFor(it);
+  const linked = A && A.matched && !A.loading && !A.error;
+  const sonarrSeasons = linked && svc === "sonarr" ? A.seasons : null;
+  const arrSeason = sonarrSeasons && isSeason ? sonarrSeasons.find((x) => x.number === it.season_index) : null;
+  let arrActions = "", arrRow = "";
+  if (A) {
+    if (A.loading) arrRow = `<p class="arr-note">Checking ${SVC[svc]}…</p>`;
+    else if (A.error) arrRow = `<p class="arr-note is-err">${SVC[svc]}: ${esc(A.error)}</p>`;
+    else if (!A.matched) arrRow = `<p class="arr-note">Not found in ${SVC[svc]}, so it can't be deleted from here.</p>`;
+    else {
+      const blocked = kept || viaShow;
+      const label = isSeason ? "Delete season files" : "Delete";
+      arrActions = `<a class="btn ghost" href="${esc(A.url)}" target="_blank" rel="noopener">Show in ${SVC[svc]}</a>
+        <button class="btn warn" id="dDelete" ${blocked ? 'disabled title="On your keep list. Stop keeping it to delete."' : ""}>${label}</button>`;
+      if (svc === "sonarr" && !isSeason) {
+        arrRow = `<label class="switch"><input type="checkbox" id="dMonSeries" ${A.monitored ? "checked" : ""}><span class="knob"></span>Monitored in Sonarr</label>`;
+      } else if (arrSeason) {
+        arrRow = `<label class="switch"><input type="checkbox" id="dMonSeason" ${arrSeason.monitored ? "checked" : ""}><span class="knob"></span>Season ${arrSeason.number} monitored in Sonarr</label>`;
+      }
+    }
+  }
+
   const settingsMin = S.settings ? S.settings.min_play_minutes : 0;
   const counted = d.history.filter((h) => h.counted).length;
   const histLimit = 100;
@@ -442,14 +480,14 @@ function renderDetail(d) {
     const max = Math.max(1, ...d.seasons.map((s) => s.size));
     seasonsHtml = `<section class="d-section"><h3>Seasons <span>${plural(d.seasons.length, "season")}</span></h3>
       <div class="tbl-wrap"><table>
-      <thead><tr><th>Season</th><th class="r eps">Episodes</th><th class="season-bar"></th><th class="r">Size on disk</th><th>Last watched</th><th class="r">Plays</th></tr></thead>
-      <tbody>${d.seasons.map((s) => `<tr class="click" data-rk="${s.rating_key}" tabindex="0">
+      <thead><tr><th>Season</th><th class="r eps">Episodes</th><th class="season-bar"></th><th class="r">Size on disk</th><th>Last watched</th><th class="r pl">Plays</th>${sonarrSeasons ? '<th class="mon">Monitored</th>' : ""}</tr></thead>
+      <tbody>${d.seasons.map((s) => { const as = sonarrSeasons && sonarrSeasons.find((x) => x.number === s.season_index); return `<tr class="click" data-rk="${s.rating_key}" tabindex="0">
         <td>${esc(s.title)}${s.excluded ? ' <span class="tag">Kept</span>' : ""}</td>
         <td class="r eps">${s.episode_count}</td>
         <td class="season-bar" style="--tint:${tint(s.last_played)}"><div class="bar"><div class="fill" style="width:${Math.max(1, s.size / max * 100).toFixed(1)}%"></div></div></td>
         <td class="r">${bytes(s.size)}</td>
         <td>${s.last_played ? `${ymd(s.last_played)} <span class="ep ago">${ago(s.last_played)}</span>` : '<span style="color:var(--never)">Never</span>'}</td>
-        <td class="r">${s.plays}</td></tr>`).join("")}</tbody></table></div></section>`;
+        <td class="r pl">${s.plays}</td>${sonarrSeasons ? `<td class="mon">${as ? `<label class="switch" title="Monitor season ${as.number} in Sonarr"><input type="checkbox" data-season="${as.number}" ${as.monitored ? "checked" : ""} aria-label="Monitor season ${as.number}"><span class="knob"></span></label>` : ""}</td>` : ""}</tr>`; }).join("")}</tbody></table></div></section>`;
   }
 
   const historyHtml = d.history.length
@@ -470,7 +508,9 @@ function renderDetail(d) {
           ${kept || viaShow ? "" : `<button class="btn" id="dKeep">Keep</button>`}
           ${isSeason ? `<button class="btn ghost" id="dShow">Open show</button>` : ""}
           ${it.plex_url ? `<a class="btn ghost" href="${esc(it.plex_url)}" target="_blank" rel="noopener">Open in Plex</a>` : ""}
+          ${arrActions}
         </div>
+        ${arrRow ? `<div class="d-arr">${arrRow}</div>` : ""}
       </div>
     </div>
     ${keepBlock}
@@ -504,11 +544,90 @@ function renderDetail(d) {
     $("#hBody").innerHTML = histRows(d.history, it.kind !== "movie", settingsMin);
     e.target.remove();
   });
+  $("#dDelete", body)?.addEventListener("click", () => openDelete(it, A, arrSeason));
+  const monitor = async (input, season) => {
+    input.disabled = true;
+    try {
+      const res = await api(`/api/arr/${it.rating_key}/monitor`, {
+        method: "PUT", body: JSON.stringify(season == null ? { monitored: input.checked } : { monitored: input.checked, season }) });
+      S.arr = { ...S.arr, monitored: res.monitored, seasons: res.seasons };
+      toast(`${season == null ? "Show" : `Season ${season}`} ${input.checked ? "monitored" : "unmonitored"} in Sonarr`);
+    } catch (e) {
+      input.checked = !input.checked;
+      toast(e.message);
+    }
+    renderDetail(S.detail);
+  };
+  $("#dMonSeries", body)?.addEventListener("change", (e) => monitor(e.target, null));
+  $("#dMonSeason", body)?.addEventListener("change", (e) => monitor(e.target, arrSeason.number));
+  $$("td.mon", body).forEach((td) => td.addEventListener("click", (e) => e.stopPropagation()));
+  $$("td.mon input", body).forEach((inp) => inp.addEventListener("change", () => monitor(inp, +inp.dataset.season)));
   $$("tr.click", body).forEach((tr) => {
     const go = () => openDetail(+tr.dataset.rk, true);
     tr.addEventListener("click", go);
     tr.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
   });
+}
+
+/* ------------------------------------------------------------ delete via Sonarr / Radarr */
+
+function openDelete(it, A, arrSeason) {
+  const dlg = $("#delDlg");
+  const isSeason = it.kind === "season";
+  const size = bytes(isSeason && arrSeason && arrSeason.size ? arrSeason.size : it.size);
+  let html;
+  if (it.kind === "movie") {
+    html = `<h2>Delete ${esc(it.title)}?</h2>
+      <p>Radarr removes the movie and deletes its files (${size}), so it won't download again. This can't be undone.</p>
+      <label class="check"><input type="checkbox" name="exclusion" checked> Add to Radarr's import exclusions so lists don't add it back</label>`;
+  } else if (isSeason) {
+    const files = arrSeason ? arrSeason.files : it.episode_count;
+    html = `<h2>Delete ${esc(it.show_title)} season ${it.season_index} files?</h2>
+      <p>Sonarr deletes the ${plural(files, "episode file")} in this season (${size}). The show stays in Sonarr. This can't be undone.</p>
+      <label class="check"><input type="checkbox" name="unmonitor" checked> Unmonitor the deleted episodes so Sonarr doesn't download them again</label>`;
+  } else {
+    html = `<h2>Delete ${esc(it.title)}?</h2>
+      <div class="choices">
+        <label class="choice"><input type="radio" name="mode" value="remove" checked>
+          <span><b>Remove from Sonarr</b>Deletes every episode file (${size}) and removes the show from Sonarr. Nothing new will download.</span></label>
+        <label class="choice"><input type="radio" name="mode" value="files">
+          <span><b>Delete files, keep in Sonarr</b>Deletes every episode file (${size}). The show stays in Sonarr so new episodes still download.</span></label>
+      </div>
+      <label class="check" data-for="remove"><input type="checkbox" name="exclusion" checked> Add to Sonarr's import list exclusions so lists don't add it back</label>
+      <label class="check" data-for="files" hidden><input type="checkbox" name="unmonitor" checked> Unmonitor episodes that have already aired so they don't download again</label>
+      <p class="hint">This can't be undone.</p>`;
+  }
+  $("#delBody").innerHTML = html;
+  const go = $("#delGo");
+  const sync = () => {
+    const mode = ($("input[name=mode]:checked", dlg) || {}).value;
+    $$("[data-for]", dlg).forEach((l) => { l.hidden = l.dataset.for !== mode; });
+    go.textContent = it.kind === "movie" ? "Delete from Radarr" : isSeason ? "Delete season files" : mode === "files" ? "Delete episode files" : "Remove from Sonarr";
+  };
+  $$("input[name=mode]", dlg).forEach((r) => r.addEventListener("change", sync));
+  sync();
+  go.disabled = false;
+  go.onclick = async (e) => {
+    e.preventDefault();
+    const mode = ($("input[name=mode]:checked", dlg) || {}).value || "remove";
+    const opt = (n) => { const el = $(`[data-for="${mode}"] input[name=${n}], label:not([data-for]) > input[name=${n}]`, dlg); return el ? el.checked : true; };
+    go.disabled = true;
+    go.textContent = "Deleting…";
+    try {
+      const res = await api(`/api/arr/${it.rating_key}/delete`, {
+        method: "POST", body: JSON.stringify({ mode, exclusion: opt("exclusion"), unmonitor: opt("unmonitor") }) });
+      dlg.close();
+      toast(`${res.message}${res.freed ? `, ${bytes(res.freed)} freed` : ""}`);
+      await markKept();
+      if (isSeason) openDetail(it.show_key); else closeDetail();
+    } catch (err) {
+      go.disabled = false;
+      sync();
+      $("#delErr").textContent = err.message;
+    }
+  };
+  $("#delErr").textContent = "";
+  dlg.showModal();
 }
 
 /* ------------------------------------------------------------ sync + settings */
@@ -567,6 +686,15 @@ async function openSettings() {
   $("#sSync").innerHTML = `<p>${st.sync.last_success ? `Last synced ${ymd(st.sync.last_success)} at ${hm(st.sync.last_success)}.` : "Not synced yet."} Syncs every ${st.interval_hours} hours.</p><p>${src}</p>
     ${st.sync.last_error ? `<p style="color:var(--danger)">Last error: ${esc(st.sync.last_error)}</p>` : ""}`;
   $("#sVersion").textContent = `Shelflife ${st.version}`;
+  $("#sInteg").innerHTML = `<p class="hint">Checking…</p>`;
+  api("/api/integrations").then((ig) => {
+    const line = (name, v, off) => `<li><b>${name}</b> ${!v.enabled ? `<span class="muted">${off}</span>`
+      : v.ok === false ? `<span class="bad">${esc(v.error)}</span>` : `<span class="good">Connected${v.version ? ` (v${esc(v.version)})` : ""}</span>`}</li>`;
+    $("#sInteg").innerHTML = `<ul class="integ">
+      ${line("Plex", ig.plex, "Not set up. Add PLEX_TOKEN for faster syncs and Open in Plex links.")}
+      ${line("Sonarr", ig.sonarr, "Not set up. Add SONARR_URL and SONARR_API_KEY to delete shows and change monitoring.")}
+      ${line("Radarr", ig.radarr, "Not set up. Add RADARR_URL and RADARR_API_KEY to delete movies.")}</ul>`;
+  }).catch((e) => { $("#sInteg").innerHTML = `<p class="hint">${esc(e.message)}</p>`; });
   $("#settings").showModal();
 }
 
@@ -587,7 +715,7 @@ function bind() {
   $("#fNever").addEventListener("change", (e) => set("never", e.target.value));
   $("#fGrace").addEventListener("change", (e) => set("grace", +e.target.value));
   let qt;
-  $("#fSearch").addEventListener("input", (e) => { clearTimeout(qt); qt = setTimeout(() => set("q", e.target.value), 120); });
+  $("#fSearch").addEventListener("input", (e) => { S.f.q = e.target.value; clearTimeout(qt); qt = setTimeout(apply, 120); });
   $("#fSort").addEventListener("change", (e) => { S.f.rev = false; syncControls(); set("sort", e.target.value); });
   $("#fDir").addEventListener("click", () => { S.f.rev = !S.f.rev; syncControls(); apply(); });
   $("#fShowKept").addEventListener("change", (e) => set("showKept", e.target.checked));

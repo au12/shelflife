@@ -8,7 +8,7 @@
 
 Shelflife lists every movie and TV show that nobody has watched in a while (or ever), sorted by how much disk it takes up, so you can see where culling buys back the most space. Click any title to see its full watch history, the way Tautulli shows it. Titles you'd never delete go on a keep list and stop showing up.
 
-Shelflife only reads. It never deletes or changes anything in Plex, Tautulli, Sonarr or Radarr.
+On its own Shelflife only reads. Connect Sonarr and Radarr and it can delete what you pick, through them, so nothing re-downloads behind your back.
 
 ## What it does
 
@@ -20,15 +20,17 @@ Shelflife only reads. It never deletes or changes anything in Plex, Tautulli, So
 - **Keep list.** Keep a title from its detail page, or select several rows and keep them all at once. Keeping a show keeps all its seasons. Add a note so future-you knows why.
 - **What counts as watched.** In settings, ignore plays from specific people (your test plays, a kid on loop) and plays shorter than N minutes.
 - **Selection totals and CSV export.** Tick rows to see how much space they add up to, then export the list.
-- **Open in Plex** from any title. Works on phones; installable as a PWA.
+- **Delete through Radarr and Sonarr (optional).** Movies are removed from Radarr with their files, so they don't download again. Shows offer two choices: remove the show from Sonarr entirely, or delete every episode file but keep the show in Sonarr so new episodes still arrive. Single seasons can have their files deleted too. Kept titles can't be deleted.
+- **Sonarr monitoring.** Toggle monitoring for the whole show and for each season from the detail panel.
+- **Show in Sonarr / Show in Radarr** links, and **Open in Plex** when a Plex token is set. Works on phones; installable as a PWA.
 
 | Title detail | Watch history |
 | --- | --- |
 | ![Detail panel](docs/screenshots/desktop-detail.png) | ![History table](docs/screenshots/desktop-history.png) |
 
-| Seasons view |
-| --- |
-| ![Seasons view](docs/screenshots/desktop-seasons.png) |
+| Seasons view | Deleting through Sonarr |
+| --- | --- |
+| ![Seasons view](docs/screenshots/desktop-seasons.png) | ![Delete dialog](docs/screenshots/desktop-delete.png) |
 
 <p>
   <img src="docs/screenshots/mobile-list.png" width="300" alt="Cull list on a phone">
@@ -42,7 +44,7 @@ Shelflife only reads. It never deletes or changes anything in Plex, Tautulli, So
    `https://raw.githubusercontent.com/au12/shelflife/main/templates/shelflife.xml`
    (or copy `templates/shelflife.xml` to `/boot/config/plugins/dockerMan/templates-user/my-shelflife.xml` and pick it from the template list).
 2. Fill in **Tautulli URL** and **Tautulli API key** (Tautulli → Settings → Web Interface).
-3. Optional but recommended for TV-heavy libraries: add a **Plex token**.
+3. Optional: add a **Plex token** (faster syncs, Open in Plex links), and **Sonarr** / **Radarr** URLs and API keys to delete titles and manage monitoring.
 4. Apply, then open the web UI on port 8585. The first sync starts on its own.
 
 ## Docker / Compose
@@ -60,6 +62,10 @@ services:
       TAUTULLI_URL: http://192.168.1.10:8181
       TAUTULLI_API_KEY: your-tautulli-api-key
       # PLEX_TOKEN: your-plex-token        # optional, see below
+      # SONARR_URL: http://192.168.1.10:8989
+      # SONARR_API_KEY: your-sonarr-api-key
+      # RADARR_URL: http://192.168.1.10:7878
+      # RADARR_API_KEY: your-radarr-api-key
     restart: unless-stopped
 ```
 
@@ -71,6 +77,10 @@ services:
 | `TAUTULLI_API_KEY` | | Tautulli API key. Required. |
 | `PLEX_TOKEN` | | Optional. Reads file sizes straight from Plex (see below). |
 | `PLEX_URL` | from Tautulli | Plex address, only used with a token. Defaults to the one Tautulli uses. |
+| `SONARR_URL` / `SONARR_API_KEY` | | Optional. Delete shows and seasons, change monitoring. |
+| `RADARR_URL` / `RADARR_API_KEY` | | Optional. Delete movies. |
+| `SONARR_PUBLIC_URL` / `RADARR_PUBLIC_URL` | same as the URL | Address your browser uses for the Show in Sonarr/Radarr links, if different (e.g. behind a reverse proxy). |
+| `DELETED_HIDE_DAYS` | `7` | How long deleted titles stay hidden while Plex catches up. |
 | `SYNC_INTERVAL_HOURS` | `12` | How often libraries and history are re-read. You can also sync from the UI. |
 | `IGNORE_LIBRARIES` | | Comma-separated library names or ids to leave out. |
 | `SYNC_CONCURRENCY` | `4` | Parallel Tautulli requests when walking TV seasons. |
@@ -86,6 +96,21 @@ Ignored users and the minimum play length are set in the web UI and stored in `/
 Tautulli's API reports movie file sizes directly, but not show sizes. Without a Plex token, Shelflife walks every show and season through Tautulli and adds up the episodes. That works, but on a library with hundreds of shows the sync takes a few minutes, and multi-version movies only count their first version.
 
 With `PLEX_TOKEN` set, Shelflife asks Plex for every movie and episode in one request per library. Syncs take seconds and every version and part counts toward the size. ([How to find your Plex token](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/).)
+
+### Deleting with Sonarr and Radarr
+
+The delete button appears once Shelflife finds the title in Sonarr or Radarr. It matches on the TVDB/TMDB/IMDb ids Plex has for the title, then falls back to title and year. If a title isn't found, the panel says so and nothing can be deleted from here.
+
+| What you delete | What happens |
+| --- | --- |
+| A movie | Radarr removes the movie and deletes its files. Optionally adds it to Radarr's import exclusions so lists don't re-add it. |
+| A show: **Remove from Sonarr** | Sonarr deletes every episode file and removes the series. Optionally adds it to Sonarr's import list exclusions. |
+| A show: **Delete files, keep in Sonarr** | Sonarr deletes every episode file. The series stays, so new episodes still download. Episodes that have already aired are unmonitored so Sonarr doesn't grab them again; fully aired seasons are unmonitored as a whole. |
+| A season | Sonarr deletes that season's episode files and, by default, unmonitors them the same way. |
+
+Every delete asks for confirmation first. Titles on the keep list (or seasons of a kept show) can't be deleted until you stop keeping them.
+
+After a delete, Plex still lists the title until it rescans and empties its trash. Shelflife hides deleted titles for `DELETED_HIDE_DAYS` (7 by default) so they don't come back on the next sync. If you have Sonarr/Radarr's Plex connection set up, Plex usually catches up within minutes.
 
 ### How "watched" is decided
 
@@ -103,7 +128,7 @@ CONFIG_DIR=./config TAUTULLI_URL=http://localhost:8181 TAUTULLI_API_KEY=x \
 python dev/screenshots.py          # regenerate docs/screenshots
 ```
 
-Add `PLEX_TOKEN=x` to exercise the Plex-direct path against the same mock. The screenshots use the mock's invented titles, users and posters.
+Add `PLEX_TOKEN=x` to exercise the Plex-direct path against the same mock, and `SONARR_URL=http://localhost:8181/sonarr SONARR_API_KEY=x RADARR_URL=http://localhost:8181/radarr RADARR_API_KEY=x` for the mock Sonarr and Radarr. The screenshots use the mock's invented titles, users and posters.
 
 ## License
 

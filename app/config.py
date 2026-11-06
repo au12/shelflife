@@ -13,6 +13,18 @@ TAUTULLI_API_KEY = _env("TAUTULLI_API_KEY")
 PLEX_URL = _env("PLEX_URL").rstrip("/")
 PLEX_TOKEN = _env("PLEX_TOKEN")
 
+# Optional: Sonarr / Radarr for deleting and (un)monitoring. *_PUBLIC_URL is the address your
+# browser uses for "Show in Sonarr/Radarr" links, if it differs from what the container uses.
+SONARR_URL = _env("SONARR_URL").rstrip("/")
+SONARR_API_KEY = _env("SONARR_API_KEY")
+SONARR_PUBLIC_URL = (_env("SONARR_PUBLIC_URL") or SONARR_URL).rstrip("/")
+RADARR_URL = _env("RADARR_URL").rstrip("/")
+RADARR_API_KEY = _env("RADARR_API_KEY")
+RADARR_PUBLIC_URL = (_env("RADARR_PUBLIC_URL") or RADARR_URL).rstrip("/")
+
+# Deleted titles stay hidden this long while Plex catches up with the removed files.
+DELETED_HIDE_DAYS = float(_env("DELETED_HIDE_DAYS", "7") or 7)
+
 SYNC_INTERVAL_HOURS = float(_env("SYNC_INTERVAL_HOURS", "12") or 12)
 SYNC_CONCURRENCY = int(_env("SYNC_CONCURRENCY", "4") or 4)
 VERIFY_SSL = _env("VERIFY_SSL", "true").lower() not in ("0", "false", "no")
