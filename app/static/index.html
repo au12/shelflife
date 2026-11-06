@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1b2129">
+  <meta name="color-scheme" content="dark">
+  <title>Shelflife</title>
+  <link rel="icon" type="image/png" href="/static/icon-192.png">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="preload" href="/static/fonts/plex-sans-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/app.css?v={{v}}">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <img src="/static/icon-192.png" alt="" width="28" height="28">
+      <span>Shelflife</span>
+    </div>
+    <nav class="tabs" aria-label="Sections">
+      <button class="tab is-on" data-tab="cull">Cull list</button>
+      <button class="tab" data-tab="keep">Keep list <span class="count" id="keepCount"></span></button>
+    </nav>
+    <div class="top-right">
+      <span class="sync-text" id="syncText" aria-live="polite"></span>
+      <button class="btn ghost icon" id="syncBtn" title="Sync now" aria-label="Sync now">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="btn ghost icon" id="settingsBtn" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="7" r="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="10" cy="17" r="2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="cullView">
+    <section class="controls" aria-label="Filters">
+      <div class="ctl">
+        <label for="fLib">Library</label>
+        <select id="fLib"></select>
+      </div>
+      <div class="ctl">
+        <span class="lbl" id="fViewLbl">Show</span>
+        <div class="seg" role="radiogroup" aria-labelledby="fViewLbl">
+          <button role="radio" data-view="titles" aria-checked="true">Titles</button>
+          <button role="radio" data-view="seasons" aria-checked="false">Seasons</button>
+        </div>
+      </div>
+      <div class="ctl">
+        <label for="fAge">Not watched in</label>
+        <select id="fAge">
+          <option value="0">Any time</option>
+          <option value="30">1 month</option>
+          <option value="91">3 months</option>
+          <option value="182">6 months</option>
+          <option value="365">1 year</option>
+          <option value="730">2 years</option>
+          <option value="1095">3 years</option>
+          <option value="1825">5 years</option>
+        </select>
+      </div>
+      <div class="ctl">
+        <label for="fNever">Never watched</label>
+        <select id="fNever">
+          <option value="include">Include</option>
+          <option value="exclude">Leave out</option>
+          <option value="only">Only these</option>
+        </select>
+      </div>
+      <div class="ctl">
+        <label for="fGrace">Skip recently added</label>
+        <select id="fGrace">
+          <option value="0">Don't skip</option>
+          <option value="30">Last 30 days</option>
+          <option value="91">Last 3 months</option>
+          <option value="182">Last 6 months</option>
+          <option value="365">Last year</option>
+        </select>
+      </div>
+      <div class="ctl grow">
+        <label for="fSearch">Search</label>
+        <input id="fSearch" type="search" placeholder="Title" autocomplete="off">
+      </div>
+      <div class="ctl">
+        <label for="fSort">Sort by</label>
+        <div class="sortpair">
+          <select id="fSort">
+            <option value="size">Size on disk</option>
+            <option value="last">Last watched</option>
+            <option value="added">Date added</option>
+            <option value="plays">Plays</option>
+            <option value="title">Title</option>
+          </select>
+          <button class="btn ghost icon" id="fDir" aria-label="Reverse sort order" title="Reverse sort order">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M8 4v16M8 20l-4-4M8 20l4-4M16 20V4M16 4l-4 4M16 4l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      </div>
+      <label class="check ctl-check"><input type="checkbox" id="fShowKept"> Show kept titles</label>
+    </section>
+
+    <section class="summary" aria-live="polite">
+      <p class="headline" id="headline"></p>
+      <div class="selbar" id="selbar" hidden>
+        <span id="selText"></span>
+        <button class="btn" id="selKeep">Keep these</button>
+        <button class="btn ghost" id="selExport">Export CSV</button>
+        <button class="btn ghost" id="selClear">Clear</button>
+      </div>
+      <button class="btn ghost small" id="exportAll">Export list as CSV</button>
+    </section>
+
+    <div class="list-head" aria-hidden="true">
+      <span></span><span></span><span>Title</span><span>Size on disk</span><span>Last watched</span><span>Plays</span><span>Added</span>
+    </div>
+    <ol class="list" id="list"></ol>
+    <div id="sentinel"></div>
+    <div class="empty" id="empty" hidden></div>
+  </main>
+
+  <main id="keepView" hidden>
+    <section class="keep-intro">
+      <h1>Keep list</h1>
+      <p>Titles here never show up in the cull list. Keeping a show also keeps all of its seasons.</p>
+    </section>
+    <ol class="keep" id="keepList"></ol>
+    <div class="empty" id="keepEmpty" hidden>Nothing kept yet. Open any title and choose <b>Keep</b>, or select a few rows and use <b>Keep these</b>.</div>
+  </main>
+
+  <aside class="drawer" id="drawer" aria-hidden="true" aria-labelledby="dTitle" role="dialog">
+    <div class="drawer-scrim" data-close></div>
+    <div class="drawer-panel" tabindex="-1">
+      <div class="drawer-bar">
+        <button class="btn ghost icon" id="dBack" aria-label="Back" hidden>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <span class="drawer-crumb" id="dCrumb"></span>
+        <button class="btn ghost icon" data-close aria-label="Close">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="drawer-body" id="dBody"></div>
+    </div>
+  </aside>
+
+  <dialog class="settings" id="settings" aria-labelledby="sTitle">
+    <form method="dialog" class="settings-inner" id="settingsForm">
+      <h2 id="sTitle">Settings</h2>
+      <fieldset>
+        <legend>What counts as watched</legend>
+        <p class="hint">Plays from these people won't keep a title off the cull list. Useful for your own test plays or a kid who rewatches everything.</p>
+        <div class="userlist" id="sUsers"></div>
+        <label class="inline">Ignore plays shorter than
+          <input type="number" id="sMin" min="0" max="600" step="1" inputmode="numeric"> minutes</label>
+      </fieldset>
+      <fieldset>
+        <legend>Sync</legend>
+        <div id="sSync" class="hint"></div>
+      </fieldset>
+      <div class="settings-actions">
+        <span class="version" id="sVersion"></span>
+        <button class="btn ghost" value="cancel">Cancel</button>
+        <button class="btn" id="sSave" value="save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="/static/app.js?v={{v}}"></script>
+</body>
+</html>
