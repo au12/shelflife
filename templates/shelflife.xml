@@ -17,6 +17,10 @@
   <ExtraSearchTerms>plex tautulli sonarr radarr cleanup storage cull prune unwatched disk space</ExtraSearchTerms>
   <Requires>A running Tautulli instance connected to your Plex server. Sonarr, Radarr and a Plex token are optional.</Requires>
   <Changes>
+### 0.1.1 (2026-11-06)
+- Sign-in page replaces the basic-auth popup; matching field sizes and an eye icon to show the password
+- Repository laid out for Unraid Community Apps (ca_profile.xml at the root)
+
 ### 0.1.0 (2026-11-06)
 - First release: cull list from Tautulli history sorted by size on disk, seasons view, watch history, keep list
 - Optional Plex token for fast sizes and Open in Plex links
