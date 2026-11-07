@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1b2129">
+  <meta name="color-scheme" content="dark">
+  <meta name="robots" content="noindex">
+  <title>Sign in · Shelflife</title>
+  <link rel="icon" type="image/png" href="/static/icon-192.png">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="preload" href="/static/fonts/plex-sans-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/app.css?v={{v}}">
+  <style>
+    body { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; }
+    .stage { width: min(400px, 100%); display: flex; flex-direction: column; align-items: center; }
+
+    .mark { width: 168px; height: 120px; overflow: visible; }
+    .mark .book { transform-box: fill-box; transform-origin: 50% 100%; }
+    .mark .tilt { transform-box: fill-box; transform-origin: 0% 100%; transform: rotate(12deg); }
+    .wordmark { font: 600 34px/1 "Plex Condensed", "Plex", sans-serif; margin: 18px 0 6px; letter-spacing: .005em; }
+    .lede { margin: 0 0 26px; color: var(--muted); text-align: center; }
+
+    .card { width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 24px 24px 22px; }
+    .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+    .field label { font-size: 13.5px; color: var(--muted); }
+    .field input { min-height: 44px; font-size: 16px; background: var(--bg); }
+    .pw { position: relative; }
+    .pw input { padding-right: 64px; }
+    .pw button {
+      position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+      background: none; border: 0; color: var(--accent); font-weight: 500; font-size: 13.5px;
+      padding: 6px 8px; border-radius: 4px; cursor: pointer;
+    }
+    .remember { margin: 2px 0 20px; font-size: 14px; }
+    .submit { width: 100%; min-height: 46px; font-size: 15.5px; }
+    .error { min-height: 1.4em; margin: 14px 0 0; color: var(--danger); font-size: 14px; text-align: center; }
+    .error:empty { margin: 0; min-height: 0; }
+
+    @keyframes drop { from { transform: translateY(-46px); opacity: 0; } 70% { opacity: 1; } to { transform: none; opacity: 1; } }
+    @keyframes lean { from { transform: rotate(0); } to { transform: rotate(12deg); } }
+    .mark .book { animation: drop .5s cubic-bezier(.3, 1.4, .5, 1) both; }
+    .mark .b2 { animation-delay: .08s; } .mark .b3 { animation-delay: .16s; } .mark .b4 { animation-delay: .24s; }
+    .mark .tilt { animation: lean .45s .7s cubic-bezier(.5, 0, .3, 1.3) both; }
+    @media (prefers-reduced-motion: reduce) { .mark .book, .mark .tilt { animation: none; } }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <svg class="mark" viewBox="0 0 168 120" aria-hidden="true">
+      <rect class="book b1" x="10" y="20" width="26" height="92" rx="5" fill="#7db79a"/>
+      <rect class="book b2" x="42" y="4" width="30" height="108" rx="5" fill="#a9b680"/>
+      <rect class="book b3" x="78" y="30" width="24" height="82" rx="5" fill="#d4b467"/>
+      <g class="tilt"><rect class="book b4" x="118" y="6" width="28" height="106" rx="5" fill="#a48ed0"/></g>
+      <rect x="0" y="110" width="168" height="10" rx="5" fill="#e4e8ee"/>
+    </svg>
+    <h1 class="wordmark">Shelflife</h1>
+    <p class="lede">Sign in to manage your Plex libraries.</p>
+
+    <form class="card" id="form" novalidate>
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <div class="pw">
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+          <button type="button" id="reveal" aria-controls="password" aria-pressed="false">Show</button>
+        </div>
+      </div>
+      <label class="check remember"><input type="checkbox" id="remember" checked> Keep me signed in for 30 days</label>
+      <button class="btn submit" id="submit" type="submit">Sign in</button>
+      <p class="error" id="error" role="alert" aria-live="assertive"></p>
+    </form>
+  </main>
+
+  <script>
+    (function () {
+      const form = document.getElementById("form");
+      const user = document.getElementById("username");
+      const pass = document.getElementById("password");
+      const err = document.getElementById("error");
+      const btn = document.getElementById("submit");
+      const reveal = document.getElementById("reveal");
+
+      // Only ever send people back to a path on this site.
+      const next = new URLSearchParams(location.search).get("next") || "/";
+      const dest = /^\/(?!\/)/.test(next) && !next.startsWith("/login") ? next : "/";
+
+      user.focus();
+      reveal.addEventListener("click", () => {
+        const show = pass.type === "password";
+        pass.type = show ? "text" : "password";
+        reveal.textContent = show ? "Hide" : "Show";
+        reveal.setAttribute("aria-pressed", String(show));
+        pass.focus();
+      });
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (!user.value.trim()) { err.textContent = "Enter your username."; user.focus(); return; }
+        if (!pass.value) { err.textContent = "Enter your password."; pass.focus(); return; }
+        err.textContent = "";
+        btn.disabled = true;
+        btn.textContent = "Signing in…";
+        try {
+          const r = await fetch("/api/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: user.value.trim(), password: pass.value, remember: document.getElementById("remember").checked }),
+          });
+          if (r.ok) { location.replace(dest); return; }
+          let msg = "Couldn't sign in.";
+          try { msg = (await r.json()).detail || msg; } catch (_) { /* not json */ }
+          err.textContent = msg;
+          pass.value = "";
+          pass.focus();
+        } catch (_) {
+          err.textContent = "Couldn't reach Shelflife. Check your connection and try again.";
+        }
+        btn.disabled = false;
+        btn.textContent = "Sign in";
+      });
+    })();
+  </script>
+</body>
+</html>

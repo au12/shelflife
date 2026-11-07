@@ -84,7 +84,7 @@ services:
 | `SYNC_INTERVAL_HOURS` | `12` | How often libraries and history are re-read. You can also sync from the UI. |
 | `IGNORE_LIBRARIES` | | Comma-separated library names or ids to leave out. |
 | `SYNC_CONCURRENCY` | `4` | Parallel Tautulli requests when walking TV seasons. |
-| `AUTH_USER` / `AUTH_PASS` | | Optional basic-auth login. |
+| `AUTH_USER` / `AUTH_PASS` | | Optional. Turns on the sign-in page. |
 | `VERIFY_SSL` | `true` | Set `false` for self-signed Tautulli/Plex certificates. |
 | `PUID` / `PGID` | `99` / `100` | Owner of files in `/config`. |
 | `PORT` | `8585` | Port inside the container. |
@@ -111,6 +111,16 @@ The delete button appears once Shelflife finds the title in Sonarr or Radarr. It
 Every delete asks for confirmation first. Titles on the keep list (or seasons of a kept show) can't be deleted until you stop keeping them.
 
 After a delete, Plex still lists the title until it rescans and empties its trash. Shelflife hides deleted titles for `DELETED_HIDE_DAYS` (7 by default) so they don't come back on the next sync. If you have Sonarr/Radarr's Plex connection set up, Plex usually catches up within minutes.
+
+### Signing in
+
+Set `AUTH_USER` and `AUTH_PASS` to put Shelflife behind a sign-in page. Sessions last 12 hours, or 30 days with "Keep me signed in", and live in a signed, HTTP-only cookie. Changing the password signs everyone out. Five wrong passwords from one address lock it out for 5 minutes. Basic auth with the same credentials still works for scripts (`curl -u user:pass .../api/items`).
+
+| Desktop | Phone |
+| --- | --- |
+| ![Sign-in page](docs/screenshots/login-desktop.png) | <img src="docs/screenshots/login-mobile.png" width="260" alt="Sign-in page on a phone"> |
+
+If you put Shelflife behind a reverse proxy with HTTPS, the cookie is marked Secure automatically.
 
 ### How "watched" is decided
 

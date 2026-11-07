@@ -1,18 +1,17 @@
 import asyncio
-import base64
 import hashlib
 import logging
 import os
 import re
-import secrets
 import time
 from contextlib import asynccontextmanager
+from urllib.parse import quote
 
 from fastapi import Body, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import arr, config, db, sync
+from . import arr, auth, config, db, sync
 from .clients import ApiError, Tautulli
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -31,20 +30,61 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Shelflife", lifespan=lifespan, docs_url=None, redoc_url=None)
 
 
+PUBLIC_PATHS = {"/healthz", "/login", "/api/login", "/manifest.webmanifest"}
+
+
 @app.middleware("http")
-async def basic_auth(request: Request, call_next):
-    if config.AUTH_USER and request.url.path not in ("/healthz",):
-        header = request.headers.get("authorization", "")
-        ok = False
-        if header.lower().startswith("basic "):
-            try:
-                user, _, pw = base64.b64decode(header[6:]).decode().partition(":")
-                ok = secrets.compare_digest(user, config.AUTH_USER) and secrets.compare_digest(pw, config.AUTH_PASS)
-            except ValueError:
-                ok = False
-        if not ok:
-            return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="Shelflife"'})
-    return await call_next(request)
+async def require_login(request: Request, call_next):
+    path = request.url.path
+    if not auth.enabled() or path in PUBLIC_PATHS or path.startswith("/static/"):
+        return await call_next(request)
+    if auth.valid(request.cookies.get(auth.COOKIE)) or auth.check_basic(request.headers.get("authorization", "")):
+        return await call_next(request)
+    if path.startswith("/api/"):
+        return JSONResponse({"detail": "Sign in required"}, status_code=401)
+    target = path + (f"?{request.url.query}" if request.url.query else "")
+    return RedirectResponse(f"/login?next={quote(target)}", status_code=303)
+
+
+@app.get("/login")
+def login_page(request: Request):
+    if not auth.enabled() or auth.valid(request.cookies.get(auth.COOKIE)):
+        return RedirectResponse("/", status_code=303)
+    with open(os.path.join(STATIC, "login.html"), encoding="utf-8") as f:
+        html = f.read().replace("{{v}}", config.VERSION)
+    return Response(html, media_type="text/html", headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/login")
+async def login(request: Request, body: dict = Body(default={})):
+    if not auth.enabled():
+        return {"ok": True}
+    ip = request.client.host if request.client else "?"
+    wait = auth.locked_for(ip)
+    if wait:
+        raise HTTPException(429, f"Too many attempts. Try again in {max(1, round(wait / 60))} min.")
+    if not auth.check_password(str(body.get("username", "")), str(body.get("password", ""))):
+        auth.record_failure(ip)
+        await asyncio.sleep(0.6)
+        left = auth.MAX_FAILURES - len(auth._failures.get(ip, []))
+        msg = "That username and password don't match."
+        if 0 < left <= 2:
+            msg += f" {left} {'try' if left == 1 else 'tries'} left before a 5 minute lockout."
+        raise HTTPException(401, msg)
+    auth.clear_failures(ip)
+    remember = bool(body.get("remember"))
+    token, ttl = auth.issue(remember)
+    resp = JSONResponse({"ok": True})
+    resp.set_cookie(auth.COOKIE, token, max_age=ttl if remember else None, httponly=True, samesite="lax",
+                    secure=request.url.scheme == "https", path="/")
+    return resp
+
+
+@app.post("/api/logout")
+def logout():
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(auth.COOKIE, path="/")
+    return resp
 
 
 # ---------------------------------------------------------------- stats helpers
@@ -104,6 +144,7 @@ def status():
         "sync": {**sync.state, "last_success": sync.state["last_success"] or last.get("at")},
         "size_source": sync.state["size_source"] or last.get("size_source"),
         "plex_direct": bool(config.PLEX_TOKEN),
+        "auth": auth.enabled(),
         "integrations": {"plex": bool(config.PLEX_TOKEN), **arr.enabled()},
         "interval_hours": config.SYNC_INTERVAL_HOURS,
         "server": {"identifier": server.get("identifier"), "name": server.get("name")},

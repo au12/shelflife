@@ -71,6 +71,10 @@ function posterImg(thumb, w, cls = "poster") {
 
 async function api(path, opts = {}) {
   const r = await fetch(path, { headers: { "Content-Type": "application/json" }, ...opts });
+  if (r.status === 401 && path !== "/api/login") {
+    location.href = `/login?next=${encodeURIComponent(location.pathname + location.search)}`;
+    throw new Error("Signed out");
+  }
   if (!r.ok) {
     let msg = `${r.status}`;
     try { msg = (await r.json()).detail || msg; } catch (_) { /* not json */ }
@@ -686,6 +690,7 @@ async function openSettings() {
   $("#sSync").innerHTML = `<p>${st.sync.last_success ? `Last synced ${ymd(st.sync.last_success)} at ${hm(st.sync.last_success)}.` : "Not synced yet."} Syncs every ${st.interval_hours} hours.</p><p>${src}</p>
     ${st.sync.last_error ? `<p style="color:var(--danger)">Last error: ${esc(st.sync.last_error)}</p>` : ""}`;
   $("#sVersion").textContent = `Shelflife ${st.version}`;
+  $("#sLogout").hidden = !st.auth;
   $("#sInteg").innerHTML = `<p class="hint">Checking…</p>`;
   api("/api/integrations").then((ig) => {
     const line = (name, v, off) => `<li><b>${name}</b> ${!v.enabled ? `<span class="muted">${off}</span>`
@@ -781,6 +786,11 @@ function bind() {
 
   $("#syncBtn").addEventListener("click", startSync);
   $("#settingsBtn").addEventListener("click", openSettings);
+  $("#sLogout").addEventListener("click", async (e) => {
+    e.preventDefault();
+    await fetch("/api/logout", { method: "POST" });
+    location.href = "/login";
+  });
   $("#settingsForm").addEventListener("submit", (e) => {
     if (e.submitter && e.submitter.value === "save") saveSettings();
   });
