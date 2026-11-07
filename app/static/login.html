@@ -25,14 +25,31 @@
     .card { width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 24px 24px 22px; }
     .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
     .field label { font-size: 13.5px; color: var(--muted); }
-    .field input { min-height: 44px; font-size: 16px; background: var(--bg); }
-    .pw { position: relative; }
-    .pw input { padding-right: 64px; }
-    .pw button {
-      position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
-      background: none; border: 0; color: var(--accent); font-weight: 500; font-size: 13.5px;
-      padding: 6px 8px; border-radius: 4px; cursor: pointer;
+    .field input {
+      box-sizing: border-box; width: 100%; height: 46px; min-height: 0; margin: 0;
+      padding: 0 12px; font-size: 16px; line-height: 1.2;
+      background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-s);
+      -webkit-appearance: none; appearance: none;
     }
+    /* focus is drawn inside the box so the focused field never looks bigger than the other */
+    .field input:focus-visible, .field input:focus {
+      outline: none; border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent);
+    }
+    .pw { position: relative; }
+    .pw input { padding-right: 46px; }
+    .pw input::-ms-reveal { display: none; }
+    .pw input::-webkit-credentials-auto-fill-button { visibility: hidden; position: absolute; right: 0; }
+    .pw button {
+      position: absolute; top: 1px; right: 1px; bottom: 1px; width: 44px;
+      display: grid; place-items: center;
+      background: none; border: 0; border-radius: 0 var(--radius-s) var(--radius-s) 0;
+      color: var(--muted); cursor: pointer; padding: 0;
+    }
+    .pw button:hover { color: var(--text); }
+    .pw button:focus-visible { outline: none; color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
+    .pw .eye-off { display: none; }
+    .pw button[aria-pressed="true"] .eye { display: none; }
+    .pw button[aria-pressed="true"] .eye-off { display: block; }
     .remember { margin: 2px 0 20px; font-size: 14px; }
     .submit { width: 100%; min-height: 46px; font-size: 15.5px; }
     .error { min-height: 1.4em; margin: 14px 0 0; color: var(--danger); font-size: 14px; text-align: center; }
@@ -67,7 +84,10 @@
         <label for="password">Password</label>
         <div class="pw">
           <input id="password" name="password" type="password" autocomplete="current-password" required>
-          <button type="button" id="reveal" aria-controls="password" aria-pressed="false">Show</button>
+          <button type="button" id="reveal" aria-controls="password" aria-pressed="false" aria-label="Show password" title="Show password">
+            <svg class="eye" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+            <svg class="eye-off" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M10.6 5.1A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a17.7 17.7 0 0 1-3.1 4.1M6.6 6.6C3.7 8.5 2 12 2 12s3.6 7 10 7a9.8 9.8 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
         </div>
       </div>
       <label class="check remember"><input type="checkbox" id="remember" checked> Keep me signed in for 30 days</label>
@@ -93,8 +113,9 @@
       reveal.addEventListener("click", () => {
         const show = pass.type === "password";
         pass.type = show ? "text" : "password";
-        reveal.textContent = show ? "Hide" : "Show";
         reveal.setAttribute("aria-pressed", String(show));
+        reveal.setAttribute("aria-label", show ? "Hide password" : "Show password");
+        reveal.title = show ? "Hide password" : "Show password";
         pass.focus();
       });
 
