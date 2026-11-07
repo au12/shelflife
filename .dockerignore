@@ -2,6 +2,6 @@
 .github
 docs
 dev
-templates
+unraid
 *.md
 __pycache__

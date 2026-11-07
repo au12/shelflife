@@ -1,26 +1,38 @@
 <?xml version="1.0"?>
 <Container version="2">
-  <Name>shelflife</Name>
+  <Name>Shelflife</Name>
   <Repository>ghcr.io/au12/shelflife:latest</Repository>
   <Registry>https://github.com/au12/shelflife/pkgs/container/shelflife</Registry>
   <Network>bridge</Network>
-  <MyIP/>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>
+  <Icon>https://raw.githubusercontent.com/au12/shelflife/main/icon.png</Icon>
+  <WebUI>http://[IP]:[PORT:8585]/</WebUI>
+  <Overview>Find the biggest, least-watched movies and TV shows in your Plex libraries and reclaim the space. Shelflife reads watch history from Tautulli and lists everything nobody has watched in a while (or ever), sorted by size on disk, with a seasons view, per-title watch history and a keep list for titles you never want to see again. Optionally connects to Sonarr and Radarr to delete movies, shows or individual seasons and to change monitoring, so deleted media doesn't download again. Read-only unless you connect Sonarr or Radarr.</Overview>
   <Support>https://github.com/au12/shelflife/issues</Support>
   <Project>https://github.com/au12/shelflife</Project>
-  <Overview>Find the biggest, least-watched movies and TV shows in your Plex libraries. Shelflife reads watch history from Tautulli, lists everything nobody has watched in a while (or ever), sorted by size on disk, and keeps a list of titles you never want to see in the cull list. Optionally connects to Sonarr and Radarr to delete titles and change monitoring.</Overview>
-  <Category>MediaServer:Video Tools:</Category>
-  <WebUI>http://[IP]:[PORT:8585]/</WebUI>
-  <TemplateURL>https://raw.githubusercontent.com/au12/shelflife/main/templates/shelflife.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/au12/shelflife/main/icon.png</Icon>
+  <TemplateURL>https://raw.githubusercontent.com/au12/shelflife/main/unraid/templates/shelflife.xml</TemplateURL>
+  <ReadMe>https://raw.githubusercontent.com/au12/shelflife/main/README.md</ReadMe>
+  <Category>MediaServer:Video Tools:Utilities</Category>
+  <ExtraSearchTerms>plex tautulli sonarr radarr cleanup storage cull prune unwatched disk space</ExtraSearchTerms>
+  <Requires>A running Tautulli instance connected to your Plex server. Sonarr, Radarr and a Plex token are optional.</Requires>
+  <Changes>
+### 0.1.0 (2026-11-06)
+- First release: cull list from Tautulli history sorted by size on disk, seasons view, watch history, keep list
+- Optional Plex token for fast sizes and Open in Plex links
+- Optional Sonarr/Radarr deletion and monitoring
+- Sign-in page (set AUTH_USER and AUTH_PASS)
+  </Changes>
+  <Date>2026-11-06</Date>
+  <License>MIT</License>
+  <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/desktop-list.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/desktop-detail.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/desktop-history.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/desktop-seasons.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/desktop-delete.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/mobile-list.png</Screenshot>
   <ExtraParams/>
   <PostArgs/>
-  <CPUset/>
-  <DateInstalled/>
-  <DonateText/>
-  <DonateLink/>
-  <Requires>A running Tautulli instance connected to your Plex server.</Requires>
   <Config Name="Web UI port" Target="8585" Default="8585" Mode="tcp" Description="Port for the web interface." Type="Port" Display="always" Required="true" Mask="false">8585</Config>
   <Config Name="Config" Target="/config" Default="/mnt/user/appdata/shelflife" Mode="rw" Description="Database (keep list, settings, cached history) and poster cache." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/shelflife</Config>
   <Config Name="Tautulli URL" Target="TAUTULLI_URL" Default="" Mode="" Description="Base URL of Tautulli, including any HTTP root, e.g. http://192.168.1.10:8181" Type="Variable" Display="always" Required="true" Mask="false"></Config>

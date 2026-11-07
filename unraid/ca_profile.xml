@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<CommunityApplications>
+  <Profile>
+**Shelflife** helps you reclaim disk space on your Plex server. It reads watch history from Tautulli and lists the movies and TV shows nobody has watched in a while (or ever), sorted by size on disk, so you can see where culling frees up the most room. Connect Sonarr and Radarr to delete titles or individual seasons and change monitoring without anything re-downloading.
+
+Maintained by au12. Report problems and request features on GitHub: https://github.com/au12/shelflife/issues
+  </Profile>
+  <Icon>https://raw.githubusercontent.com/au12/shelflife/main/unraid/icon.svg</Icon>
+  <WebPage>https://github.com/au12/shelflife</WebPage>
+</CommunityApplications>
