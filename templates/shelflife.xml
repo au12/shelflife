@@ -11,7 +11,7 @@
   <Overview>Find the biggest, least-watched movies and TV shows in your Plex libraries and reclaim the space. Shelflife reads watch history from Tautulli and lists everything nobody has watched in a while (or ever), sorted by size on disk, with a seasons view, per-title watch history and a keep list for titles you never want to see again. Optionally connects to Sonarr and Radarr to delete movies, shows or individual seasons and to change monitoring, so deleted media doesn't download again. Read-only unless you connect Sonarr or Radarr.</Overview>
   <Support>https://github.com/au12/shelflife/issues</Support>
   <Project>https://github.com/au12/shelflife</Project>
-  <TemplateURL>https://raw.githubusercontent.com/au12/shelflife/main/unraid/templates/shelflife.xml</TemplateURL>
+  <TemplateURL>https://raw.githubusercontent.com/au12/shelflife/main/templates/shelflife.xml</TemplateURL>
   <ReadMe>https://raw.githubusercontent.com/au12/shelflife/main/README.md</ReadMe>
   <Category>MediaServer:Video Tools:Utilities</Category>
   <ExtraSearchTerms>plex tautulli sonarr radarr cleanup storage cull prune unwatched disk space</ExtraSearchTerms>

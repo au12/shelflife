@@ -41,13 +41,13 @@ On its own Shelflife only reads. Connect Sonarr and Radarr and it can delete wha
 ## Install on Unraid
 
 1. In the Docker tab, choose **Add Container**, and paste this into **Template**:
-   `https://raw.githubusercontent.com/au12/shelflife/main/unraid/templates/shelflife.xml`
-   (or copy `unraid/templates/shelflife.xml` to `/boot/config/plugins/dockerMan/templates-user/my-shelflife.xml` and pick it from the template list).
+   `https://raw.githubusercontent.com/au12/shelflife/main/templates/shelflife.xml`
+   (or copy `templates/shelflife.xml` to `/boot/config/plugins/dockerMan/templates-user/my-shelflife.xml` and pick it from the template list).
 2. Fill in **Tautulli URL** and **Tautulli API key** (Tautulli → Settings → Web Interface).
 3. Optional: add a **Plex token** (faster syncs, Open in Plex links), and **Sonarr** / **Radarr** URLs and API keys to delete titles and manage monitoring.
 4. Apply, then open the web UI on port 8585. The first sync starts on its own.
 
-The `unraid/` folder holds everything Community Apps needs (profile, template, icon, license); see [unraid/README.md](unraid/README.md).
+This repository is laid out as an Unraid Community Apps repository: `ca_profile.xml` and `LICENSE` at the root, the template in `templates/`.
 
 ## Docker / Compose
 

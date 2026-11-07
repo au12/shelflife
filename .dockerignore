@@ -2,6 +2,7 @@
 .github
 docs
 dev
-unraid
+templates
+ca_profile.xml
 *.md
 __pycache__
