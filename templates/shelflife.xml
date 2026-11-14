@@ -8,15 +8,28 @@
   <Privileged>false</Privileged>
   <Icon>https://raw.githubusercontent.com/au12/shelflife/main/icon.png</Icon>
   <WebUI>http://[IP]:[PORT:8585]/</WebUI>
-  <Overview>Find the biggest, least-watched movies and TV shows in your Plex libraries and reclaim the space. Shelflife reads watch history from Tautulli and lists everything nobody has watched in a while (or ever), sorted by size on disk, with a seasons view, per-title watch history and a keep list for titles you never want to see again. Optionally connects to Sonarr and Radarr to delete movies, shows or individual seasons and to change monitoring, so deleted media doesn't download again. Read-only unless you connect Sonarr or Radarr.</Overview>
+  <Overview>Find the biggest, least-watched movies and TV shows in your Plex libraries and reclaim the space. Shelflife reads watch history from Tautulli and lists everything nobody has watched in a while (or ever), sorted by size on disk, with a seasons view, per-title watch history and a keep list for titles you never want to see again. Review titles one at a time, free up a set amount of space in a click, and see who requested what (Overseerr/Jellyseerr). Optionally connects to Sonarr and Radarr to delete movies, shows or seasons in bulk, or to schedule them to leave in a couple of weeks unless someone watches them, shown to everyone in a Plex "Leaving Soon" collection. Weekly digest to Discord, Slack, ntfy or a webhook. Read-only unless you connect Sonarr or Radarr.</Overview>
   <Support>https://github.com/au12/shelflife/issues</Support>
   <Project>https://github.com/au12/shelflife</Project>
   <TemplateURL>https://raw.githubusercontent.com/au12/shelflife/main/templates/shelflife.xml</TemplateURL>
   <ReadMe>https://raw.githubusercontent.com/au12/shelflife/main/README.md</ReadMe>
   <Category>MediaServer:Video Tools:Utilities</Category>
-  <ExtraSearchTerms>plex tautulli sonarr radarr cleanup storage cull prune unwatched disk space</ExtraSearchTerms>
-  <Requires>A running Tautulli instance connected to your Plex server. Sonarr, Radarr and a Plex token are optional.</Requires>
+  <ExtraSearchTerms>plex tautulli sonarr radarr overseerr jellyseerr cleanup storage cull prune unwatched disk space leaving soon maintainerr</ExtraSearchTerms>
+  <Requires>A running Tautulli instance connected to your Plex server. Sonarr, Radarr, Overseerr and a Plex token are optional.</Requires>
   <Changes>
+### 0.2.0 (2026-11-14)
+- New look: filter chips, sortable sticky columns, a last-watched bar you can click to filter, skeleton loading, sync progress bar
+- Bulk delete with a review dialog and live progress; Plex rescans afterwards
+- Leaving soon: schedule titles to be deleted in N days unless someone watches them, with a Plex "Leaving Soon" collection
+- Review mode: one title at a time, Keep / Skip / Delete with arrow keys or swipes
+- Free up: select titles until they add up to a goal
+- History tab with total space freed
+- Detail panel: backdrop, quality badges (4K, HDR, codec, Remux), file paths, requested by (Overseerr/Jellyseerr)
+- Free-space readout, weekly digest to Discord/Slack/ntfy/webhook
+- Filters and the open title live in the URL; keyboard shortcuts (press ?)
+- Faster syncs: quick syncs read only new history every 6 hours, a full sync once a day
+- Better text contrast and a fixed phone layout for the last-watched line
+
 ### 0.1.1 (2026-11-06)
 - Sign-in page replaces the basic-auth popup; matching field sizes and an eye icon to show the password
 - Repository laid out for Unraid Community Apps (ca_profile.xml at the root)
@@ -27,18 +40,20 @@
 - Optional Sonarr/Radarr deletion and monitoring
 - Sign-in page (set AUTH_USER and AUTH_PASS)
   </Changes>
-  <Date>2026-11-06</Date>
+  <Date>2026-11-14</Date>
   <License>MIT</License>
   <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/desktop-list.png</Screenshot>
   <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/desktop-detail.png</Screenshot>
-  <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/desktop-history.png</Screenshot>
-  <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/desktop-seasons.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/desktop-review.jpg</Screenshot>
   <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/desktop-delete.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/desktop-leaving.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/desktop-history.png</Screenshot>
   <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/mobile-list.png</Screenshot>
   <ExtraParams/>
   <PostArgs/>
   <Config Name="Web UI port" Target="8585" Default="8585" Mode="tcp" Description="Port for the web interface." Type="Port" Display="always" Required="true" Mask="false">8585</Config>
   <Config Name="Config" Target="/config" Default="/mnt/user/appdata/shelflife" Mode="rw" Description="Database (keep list, settings, cached history) and poster cache." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/shelflife</Config>
+  <Config Name="Free space: array" Target="/storage/Array" Default="/mnt/user" Mode="ro" Description="Optional. Shelflife only reads how much space is free here, read-only. Mount more under /storage (e.g. /mnt/cache to /storage/Cache) to see those too, or remove this path." Type="Path" Display="always" Required="false" Mask="false">/mnt/user</Config>
   <Config Name="Tautulli URL" Target="TAUTULLI_URL" Default="" Mode="" Description="Base URL of Tautulli, including any HTTP root, e.g. http://192.168.1.10:8181" Type="Variable" Display="always" Required="true" Mask="false"></Config>
   <Config Name="Tautulli API key" Target="TAUTULLI_API_KEY" Default="" Mode="" Description="Tautulli → Settings → Web Interface → API key." Type="Variable" Display="always" Required="true" Mask="true"></Config>
   <Config Name="Plex token (optional)" Target="PLEX_TOKEN" Default="" Mode="" Description="Optional. Reads file sizes straight from Plex (much faster syncs for big TV libraries, counts every version of a movie) and adds Open in Plex links. Leave blank to get sizes through Tautulli." Type="Variable" Display="always" Required="false" Mask="true"></Config>
@@ -47,10 +62,17 @@
   <Config Name="Sonarr API key" Target="SONARR_API_KEY" Default="" Mode="" Description="Sonarr → Settings → General → API Key." Type="Variable" Display="always" Required="false" Mask="true"></Config>
   <Config Name="Radarr URL (optional)" Target="RADARR_URL" Default="" Mode="" Description="Turns on deleting movies, e.g. http://192.168.1.10:7878" Type="Variable" Display="always" Required="false" Mask="false"></Config>
   <Config Name="Radarr API key" Target="RADARR_API_KEY" Default="" Mode="" Description="Radarr → Settings → General → API Key." Type="Variable" Display="always" Required="false" Mask="true"></Config>
+  <Config Name="Overseerr URL (optional)" Target="OVERSEERR_URL" Default="" Mode="" Description="Overseerr or Jellyseerr, to show who requested each title and whether they watched it, e.g. http://192.168.1.10:5055" Type="Variable" Display="always" Required="false" Mask="false"></Config>
+  <Config Name="Overseerr API key" Target="OVERSEERR_API_KEY" Default="" Mode="" Description="Overseerr/Jellyseerr → Settings → General → API Key." Type="Variable" Display="always" Required="false" Mask="true"></Config>
+  <Config Name="Notification URL (optional)" Target="NOTIFY_URL" Default="" Mode="" Description="Discord or Slack webhook, ntfy topic URL, or any URL that accepts JSON. Gets a weekly digest and Leaving soon updates." Type="Variable" Display="always" Required="false" Mask="true"></Config>
+  <Config Name="Digest day" Target="DIGEST_DAY" Default="sun" Mode="" Description="Day for the weekly digest: mon, tue, wed, thu, fri, sat, sun, or off." Type="Variable" Display="advanced" Required="false" Mask="false">sun</Config>
+  <Config Name="Digest hour" Target="DIGEST_HOUR" Default="9" Mode="" Description="Hour (0-23, in the container's time zone) to send the digest." Type="Variable" Display="advanced" Required="false" Mask="false">9</Config>
+  <Config Name="Shelflife link URL" Target="PUBLIC_URL" Default="" Mode="" Description="Address of this Shelflife, linked from notifications, e.g. http://192.168.1.10:8585" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Sonarr link URL" Target="SONARR_PUBLIC_URL" Default="" Mode="" Description="Address your browser uses for Show in Sonarr links, if it differs from Sonarr URL (e.g. https://sonarr.yourdomain.com)." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Radarr link URL" Target="RADARR_PUBLIC_URL" Default="" Mode="" Description="Address your browser uses for Show in Radarr links, if it differs from Radarr URL." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Hide deleted titles for (days)" Target="DELETED_HIDE_DAYS" Default="7" Mode="" Description="Titles deleted from Shelflife stay hidden this long while Plex catches up with the removed files." Type="Variable" Display="advanced" Required="false" Mask="false">7</Config>
-  <Config Name="Sync every (hours)" Target="SYNC_INTERVAL_HOURS" Default="12" Mode="" Description="How often to re-read libraries and watch history. You can also sync from the web UI." Type="Variable" Display="always" Required="false" Mask="false">12</Config>
+  <Config Name="Sync every (hours)" Target="SYNC_INTERVAL_HOURS" Default="6" Mode="" Description="How often to read new watch history. You can also sync from the web UI." Type="Variable" Display="always" Required="false" Mask="false">6</Config>
+  <Config Name="Full sync every (hours)" Target="FULL_SYNC_HOURS" Default="24" Mode="" Description="How often to reread everything, including file sizes and quality." Type="Variable" Display="advanced" Required="false" Mask="false">24</Config>
   <Config Name="Ignore libraries" Target="IGNORE_LIBRARIES" Default="" Mode="" Description="Comma-separated library names or section ids to leave out, e.g. Home Videos,Kids Movies" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Sync concurrency" Target="SYNC_CONCURRENCY" Default="4" Mode="" Description="Parallel requests to Tautulli when walking TV seasons (Tautulli-only mode)." Type="Variable" Display="advanced" Required="false" Mask="false">4</Config>
   <Config Name="Login user" Target="AUTH_USER" Default="" Mode="" Description="Optional. Set this and a password to require signing in. Leave blank for no login (fine on a LAN or behind a proxy with its own auth)." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>

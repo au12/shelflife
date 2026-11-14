@@ -1,6 +1,6 @@
 import httpx
 
-from . import config
+from . import config, db
 
 
 class ApiError(RuntimeError):
@@ -58,6 +58,9 @@ class Tautulli:
         )
         return (data or {}).get("data") or []
 
+    async def metadata(self, rating_key) -> dict:
+        return await self.call("get_metadata", rating_key=rating_key) or {}
+
 
 class Plex:
     PAGE = 1000
@@ -73,28 +76,54 @@ class Plex:
     async def close(self):
         await self.client.aclose()
 
-    async def all_of_type(self, section_id, plex_type: int) -> list[dict]:
+    async def req(self, method: str, path: str, params=None, ok404=False):
+        try:
+            r = await self.client.request(method, f"{self.url}{path}", params=params)
+        except httpx.HTTPError as e:
+            raise ApiError(f"Couldn't reach Plex at {self.url} ({e.__class__.__name__})") from e
+        if r.status_code == 401:
+            raise ApiError("Plex rejected the token")
+        if r.status_code == 404 and ok404:
+            return None
+        if r.status_code >= 400:
+            raise ApiError(f"Plex returned HTTP {r.status_code} for {method} {path}")
+        if not r.content:
+            return {}
+        try:
+            return r.json()
+        except ValueError:
+            return {}
+
+    async def all_of_type(self, section_id, plex_type: int, guids: bool = False) -> list[dict]:
         """Every item of a type in a library section (1=movie 2=show 3=season 4=episode)."""
         out, start = [], 0
         while True:
-            try:
-                r = await self.client.get(
-                    f"{self.url}/library/sections/{section_id}/all",
-                    params={"type": plex_type, "X-Plex-Container-Start": start, "X-Plex-Container-Size": self.PAGE},
-                )
-            except httpx.HTTPError as e:
-                raise ApiError(f"Couldn't reach Plex at {self.url} ({e.__class__.__name__})") from e
-            if r.status_code == 401:
-                raise ApiError("Plex rejected the token")
-            if r.status_code >= 400:
-                raise ApiError(f"Plex returned HTTP {r.status_code}")
-            mc = r.json().get("MediaContainer", {})
+            params = {"type": plex_type, "X-Plex-Container-Start": start, "X-Plex-Container-Size": self.PAGE}
+            if guids:
+                params["includeGuids"] = 1
+            body = await self.req("GET", f"/library/sections/{section_id}/all", params=params)
+            mc = (body or {}).get("MediaContainer", {})
             batch = mc.get("Metadata") or []
             out.extend(batch)
             total = _int(mc.get("totalSize"), len(out))
             start += len(batch)
             if not batch or start >= total:
                 return out
+
+    async def metadata(self, rating_key) -> dict | None:
+        body = await self.req("GET", f"/library/metadata/{rating_key}", ok404=True) or {}
+        return ((body.get("MediaContainer") or {}).get("Metadata") or [None])[0]
+
+    async def refresh_section(self, section_id) -> None:
+        await self.req("GET", f"/library/sections/{section_id}/refresh")
+
+
+def plex_client() -> Plex | None:
+    """A Plex client when a token is set, using PLEX_URL or the address Tautulli reported."""
+    if not config.PLEX_TOKEN:
+        return None
+    url = config.PLEX_URL or (db.kv_get("server") or {}).get("url")
+    return Plex(url, config.PLEX_TOKEN) if url else None
 
 
 def plex_media_size(meta: dict) -> int:

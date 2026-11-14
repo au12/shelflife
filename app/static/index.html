@@ -10,180 +10,222 @@
   <link rel="apple-touch-icon" href="/static/icon-192.png">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="preload" href="/static/fonts/plex-sans-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/plex-cond-600.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/app.css?v={{v}}">
 </head>
 <body>
-  <header class="top">
-    <div class="brand">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <symbol id="i-sync" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M9.7 9.4a2.4 2.4 0 0 1 4.7.6c0 1.6-2.4 2.1-2.4 3.7"/><path d="M12 16.8v.1"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></symbol>
+    <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 7h16M7 12h10M10 17h4"/></symbol>
+    <symbol id="i-keep" viewBox="0 0 24 24"><path d="M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1z"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+    <symbol id="i-skip" viewBox="0 0 24 24"><path d="M12 4v15M6 13l6 6 6-6"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-cards" viewBox="0 0 24 24"><rect x="4" y="7.5" width="12" height="13" rx="2"/><path d="M8 4.5h9.5a2.5 2.5 0 0 1 2.5 2.5v10"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M10.6 5.1A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a17.7 17.7 0 0 1-3.1 4.1M6.6 6.6C3.7 8.5 2 12 2 12s3.6 7 10 7a9.8 9.8 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 4.6L3 18a2 2 0 0 0 1.7 3h14.6a2 2 0 0 0 1.7-3L13.7 4.6a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4M12 17v.1"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8v.1"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 16l-4-4 4-4M6 12h10"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12L20 4l-6 16-2.5-6.5z"/><path d="M11.5 13.5L20 4"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></symbol>
+    <symbol id="i-disk" viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="M7.5 14.5h.1M11 14.5h5.5"/></symbol>
+    <symbol id="i-plex" viewBox="0 0 24 24"><path d="M9 5h4.5l5 7-5 7H9l5-7z"/></symbol>
+  </svg>
+
+  <header class="top" id="top">
+    <a class="brand" href="/" aria-label="Shelflife home">
       <img src="/static/icon-192.png" alt="" width="28" height="28">
       <span>Shelflife</span>
-    </div>
+    </a>
     <nav class="tabs" aria-label="Sections">
-      <button class="tab is-on" data-tab="cull">Cull list</button>
-      <button class="tab" data-tab="keep">Keep list <span class="count" id="keepCount"></span></button>
+      <a class="tab" href="/" data-tab="cull" aria-current="page">Cull list</a>
+      <a class="tab" href="/?tab=leaving" data-tab="leaving">Leaving soon <span class="count" id="leavingCount"></span></a>
+      <a class="tab" href="/?tab=keep" data-tab="keep">Keep list <span class="count" id="keepCount"></span></a>
+      <a class="tab" href="/?tab=history" data-tab="history">History</a>
     </nav>
     <div class="top-right">
       <span class="sync-text" id="syncText" aria-live="polite"></span>
-      <button class="btn ghost icon" id="syncBtn" title="Sync now" aria-label="Sync now">
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      <button class="btn ghost icon" id="settingsBtn" title="Settings" aria-label="Settings">
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="7" r="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="10" cy="17" r="2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-      </button>
+      <button class="btn ghost icon" id="syncBtn" title="Sync now" aria-label="Sync now"><svg class="ic" aria-hidden="true"><use href="#i-sync"/></svg></button>
+      <button class="btn ghost icon hide-touch" id="helpBtn" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts"><svg class="ic" aria-hidden="true"><use href="#i-help"/></svg></button>
+      <button class="btn ghost icon" id="settingsBtn" title="Settings" aria-label="Settings"><svg class="ic" aria-hidden="true"><use href="#i-settings"/></svg></button>
     </div>
+    <div class="syncbar" id="syncBar" hidden><span></span></div>
   </header>
 
-  <main id="cullView">
-    <section class="controls" aria-label="Filters">
-      <div class="ctl">
-        <label for="fLib">Library</label>
-        <select id="fLib"></select>
+  <main class="view" id="view-cull">
+    <section class="hero" aria-live="polite">
+      <div class="hero-text">
+        <p class="headline" id="headline"><span class="big skel-text">&nbsp;</span></p>
+        <p class="subline" id="subline"></p>
       </div>
-      <div class="ctl">
-        <span class="lbl" id="fViewLbl">Show</span>
-        <div class="seg" role="radiogroup" aria-labelledby="fViewLbl">
-          <button role="radio" data-view="titles" aria-checked="true">Titles</button>
-          <button role="radio" data-view="seasons" aria-checked="false">Seasons</button>
-        </div>
+      <div class="hero-actions" id="heroActions">
+        <button class="btn ghost" id="freeBtn" aria-haspopup="true" aria-expanded="false" title="Select titles until they add up to a goal (F)"><svg class="ic" aria-hidden="true"><use href="#i-target"/></svg>Free up…</button>
+        <button class="btn" id="reviewBtn" title="Review one title at a time (R)"><svg class="ic" aria-hidden="true"><use href="#i-cards"/></svg><span>Review</span></button>
+        <button class="btn ghost icon boxed" id="exportAll" type="button" title="Export this list as CSV" aria-label="Export this list as CSV"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg></button>
       </div>
-      <div class="ctl">
-        <label for="fAge">Not watched in</label>
-        <select id="fAge">
-          <option value="0">Any time</option>
-          <option value="30">1 month</option>
-          <option value="91">3 months</option>
-          <option value="182">6 months</option>
-          <option value="365">1 year</option>
-          <option value="730">2 years</option>
-          <option value="1095">3 years</option>
-          <option value="1825">5 years</option>
-        </select>
-      </div>
-      <div class="ctl">
-        <label for="fNever">Never watched</label>
-        <select id="fNever">
-          <option value="include">Include</option>
-          <option value="exclude">Leave out</option>
-          <option value="only">Only these</option>
-        </select>
-      </div>
-      <div class="ctl">
-        <label for="fGrace">Skip recently added</label>
-        <select id="fGrace">
-          <option value="0">Don't skip</option>
-          <option value="30">Last 30 days</option>
-          <option value="91">Last 3 months</option>
-          <option value="182">Last 6 months</option>
-          <option value="365">Last year</option>
-        </select>
-      </div>
-      <div class="ctl grow">
-        <label for="fSearch">Search</label>
-        <input id="fSearch" type="search" placeholder="Title" autocomplete="off">
-      </div>
-      <div class="ctl">
-        <label for="fSort">Sort by</label>
-        <div class="sortpair">
-          <select id="fSort">
-            <option value="size">Size on disk</option>
-            <option value="last">Last watched</option>
-            <option value="added">Date added</option>
-            <option value="plays">Plays</option>
-            <option value="title">Title</option>
-          </select>
-          <button class="btn ghost icon" id="fDir" aria-label="Reverse sort order" title="Reverse sort order">
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M8 4v16M8 20l-4-4M8 20l4-4M16 20V4M16 4l-4 4M16 4l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-        </div>
-      </div>
-      <label class="check ctl-check"><input type="checkbox" id="fShowKept"> Show kept titles</label>
+      <div class="storage" id="storage" hidden></div>
     </section>
 
-    <section class="summary" aria-live="polite">
-      <p class="headline" id="headline"></p>
-      <div class="selbar" id="selbar" hidden>
-        <span id="selText"></span>
-        <button class="btn" id="selKeep">Keep these</button>
-        <button class="btn ghost" id="selExport">Export CSV</button>
-        <button class="btn ghost" id="selClear">Clear</button>
+    <section class="spectrum" id="spectrum" aria-label="Everything in view, by when it was last watched"></section>
+
+    <section class="toolbar" aria-label="Filters">
+      <label class="search">
+        <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+        <input id="fSearch" type="search" placeholder="Search titles" autocomplete="off" aria-label="Search titles">
+        <kbd class="hide-touch" aria-hidden="true">/</kbd>
+      </label>
+      <div class="seg" id="fView" role="radiogroup" aria-label="Show">
+        <button type="button" role="radio" data-view="titles" aria-checked="true">Titles</button>
+        <button type="button" role="radio" data-view="seasons" aria-checked="false">Seasons</button>
       </div>
-      <button class="btn ghost small" id="exportAll">Export list as CSV</button>
+      <div class="chips" id="chips"></div>
+      <button class="btn ghost filters-btn" id="filtersBtn" type="button"><svg class="ic" aria-hidden="true"><use href="#i-filter"/></svg>Filters<span class="badge-n" id="filtersN" hidden></span></button>
     </section>
 
-    <div class="list-head" aria-hidden="true">
-      <span></span><span></span><span>Title</span><span>Size on disk</span><span>Last watched</span><span>Plays</span><span>Added</span>
+    <div class="list-head" id="listHead">
+      <span class="cb"><input type="checkbox" id="selAll" aria-label="Select every title in this list"></span>
+      <span></span>
+      <button type="button" data-sort="title">Title<svg class="ic sort-ic" aria-hidden="true"><use href="#i-down"/></svg></button>
+      <button type="button" data-sort="size">Size on disk<svg class="ic sort-ic" aria-hidden="true"><use href="#i-down"/></svg></button>
+      <button type="button" data-sort="last">Last watched<svg class="ic sort-ic" aria-hidden="true"><use href="#i-down"/></svg></button>
+      <button type="button" data-sort="plays" class="r">Plays<svg class="ic sort-ic" aria-hidden="true"><use href="#i-down"/></svg></button>
+      <button type="button" data-sort="added" class="col-added">Added<svg class="ic sort-ic" aria-hidden="true"><use href="#i-down"/></svg></button>
     </div>
-    <ol class="list" id="list"></ol>
+    <ol class="list" id="list" aria-label="Cull list"></ol>
     <div id="sentinel"></div>
     <div class="empty" id="empty" hidden></div>
   </main>
 
-  <main id="keepView" hidden>
-    <section class="keep-intro">
-      <h1>Keep list</h1>
-      <p>Titles here never show up in the cull list. Keeping a show also keeps all of its seasons.</p>
-    </section>
-    <ol class="keep" id="keepList"></ol>
-    <div class="empty" id="keepEmpty" hidden>Nothing kept yet. Open any title and choose <b>Keep</b>, or select a few rows and use <b>Keep these</b>.</div>
-  </main>
+  <main class="view page" id="view-leaving" hidden></main>
+  <main class="view page" id="view-keep" hidden></main>
+  <main class="view page" id="view-history" hidden></main>
 
-  <aside class="drawer" id="drawer" aria-hidden="true" aria-labelledby="dTitle" role="dialog">
+  <div class="selbar" id="selbar" role="region" aria-label="Selected titles" hidden>
+    <div class="sel-info"><span id="selText"></span><button class="btn ghost icon small" id="selClear" type="button" title="Clear selection (Esc)" aria-label="Clear selection"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button></div>
+    <div class="sel-actions">
+      <button class="btn" id="selKeep" type="button" title="Keep (Shift+K)"><svg class="ic" aria-hidden="true"><use href="#i-keep"/></svg><span>Keep</span></button>
+      <button class="btn ghost" id="selLeaving" type="button" title="Leaving soon (Shift+L)"><svg class="ic" aria-hidden="true"><use href="#i-clock"/></svg><span class="lbl-long">Leaving soon…</span><span class="lbl-short">Leaving</span></button>
+      <button class="btn ghost" id="selReview" type="button" title="Review one at a time (R)"><svg class="ic" aria-hidden="true"><use href="#i-cards"/></svg><span>Review</span></button>
+      <button class="btn ghost" id="selExport" type="button"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span>Export</span></button>
+      <button class="btn warn" id="selDelete" type="button" title="Delete (Del)"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg><span>Delete…</span></button>
+    </div>
+  </div>
+
+  <aside class="drawer" id="drawer" aria-hidden="true">
     <div class="drawer-scrim" data-close></div>
-    <div class="drawer-panel" tabindex="-1">
+    <div class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="dTitle" tabindex="-1">
       <div class="drawer-bar">
-        <button class="btn ghost icon" id="dBack" aria-label="Back" hidden>
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
+        <button class="btn ghost icon" id="dBack" type="button" aria-label="Back" title="Back" hidden><svg class="ic" aria-hidden="true"><use href="#i-back"/></svg></button>
         <span class="drawer-crumb" id="dCrumb"></span>
-        <button class="btn ghost icon" data-close aria-label="Close">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        </button>
+        <button class="btn ghost icon" id="dPrev" type="button" aria-label="Previous title" title="Previous title (K)"><svg class="ic" aria-hidden="true"><use href="#i-up"/></svg></button>
+        <button class="btn ghost icon" id="dNext" type="button" aria-label="Next title" title="Next title (J)"><svg class="ic" aria-hidden="true"><use href="#i-down"/></svg></button>
+        <button class="btn ghost icon" data-close type="button" aria-label="Close" title="Close (Esc)"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
       <div class="drawer-body" id="dBody"></div>
     </div>
   </aside>
 
-  <dialog class="settings" id="settings" aria-labelledby="sTitle">
-    <form method="dialog" class="settings-inner" id="settingsForm">
-      <h2 id="sTitle">Settings</h2>
-      <fieldset>
-        <legend>What counts as watched</legend>
-        <p class="hint">Plays from these people won't keep a title off the cull list. Useful for your own test plays or a kid who rewatches everything.</p>
-        <div class="userlist" id="sUsers"></div>
-        <label class="inline">Ignore plays shorter than
-          <input type="number" id="sMin" min="0" max="600" step="1" inputmode="numeric"> minutes</label>
-      </fieldset>
-      <fieldset>
-        <legend>Connections</legend>
-        <div id="sInteg"></div>
-      </fieldset>
-      <fieldset>
-        <legend>Sync</legend>
-        <div id="sSync" class="hint"></div>
-      </fieldset>
-      <div class="settings-actions">
+  <div class="pop" id="pop" hidden></div>
+
+  <dialog class="dlg sheet" id="sheet" aria-labelledby="sheetTitle">
+    <div class="dlg-head"><h2 id="sheetTitle">Filters</h2><button class="btn ghost small" id="sheetReset" type="button">Reset</button></div>
+    <div class="sheet-body" id="sheetBody"></div>
+    <div class="dlg-foot"><button class="btn wide" id="sheetDone" type="button">Show results</button></div>
+  </dialog>
+
+  <dialog class="dlg flow" id="flow"></dialog>
+
+  <dialog class="dlg settings" id="settings" aria-labelledby="sTitle">
+    <form method="dialog" id="settingsForm">
+      <div class="dlg-head"><h2 id="sTitle">Settings</h2></div>
+      <div class="dlg-body">
+        <fieldset>
+          <legend>What counts as watched</legend>
+          <p class="hint">Plays from people you tick here won't keep a title off the cull list. Handy for test plays or a kid who rewatches everything.</p>
+          <div class="userlist" id="sUsers"></div>
+          <label class="inline">Ignore plays shorter than <input type="number" id="sMin" min="0" max="600" step="1" inputmode="numeric"> minutes</label>
+        </fieldset>
+        <fieldset>
+          <legend>Leaving soon</legend>
+          <label class="inline">Delete scheduled titles after <input type="number" id="sDays" min="1" max="365" step="1" inputmode="numeric"> days, unless someone watches them</label>
+          <div id="sCollection" class="stack"></div>
+        </fieldset>
+        <fieldset>
+          <legend>Connections</legend>
+          <div id="sInteg"></div>
+        </fieldset>
+        <fieldset>
+          <legend>Weekly digest</legend>
+          <div id="sNotify"></div>
+        </fieldset>
+        <fieldset>
+          <legend>Sync</legend>
+          <div id="sSync"></div>
+        </fieldset>
+      </div>
+      <div class="dlg-foot">
         <span class="version" id="sVersion"></span>
-        <button class="btn ghost" id="sLogout" type="button" hidden>Sign out</button>
-        <button class="btn ghost" value="cancel">Cancel</button>
+        <button class="btn ghost" id="sLogout" type="button" hidden><svg class="ic" aria-hidden="true"><use href="#i-logout"/></svg>Sign out</button>
+        <button class="btn ghost" value="cancel" formnovalidate>Cancel</button>
         <button class="btn" id="sSave" value="save">Save</button>
       </div>
     </form>
   </dialog>
 
-  <dialog class="settings del" id="delDlg" aria-labelledby="delBody">
-    <form method="dialog" class="settings-inner">
-      <div id="delBody"></div>
-      <p class="del-err" id="delErr" role="alert"></p>
-      <div class="settings-actions">
-        <span class="version"></span>
-        <button class="btn ghost" value="cancel" formnovalidate>Cancel</button>
-        <button class="btn danger" id="delGo">Delete</button>
-      </div>
-    </form>
+  <dialog class="dlg help" id="help" aria-labelledby="hTitle">
+    <div class="dlg-head"><h2 id="hTitle">Keyboard shortcuts</h2><button class="btn ghost icon" type="button" data-close aria-label="Close"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button></div>
+    <div class="dlg-body">
+      <table class="keys">
+        <tbody>
+          <tr><td><kbd>/</kbd></td><td>Search</td></tr>
+          <tr><td><kbd>J</kbd> <kbd>K</kbd></td><td>Next and previous title, in the list or the open panel</td></tr>
+          <tr><td><kbd>Enter</kbd> or <kbd>O</kbd></td><td>Open the highlighted title</td></tr>
+          <tr><td><kbd>X</kbd></td><td>Select or unselect the highlighted title</td></tr>
+          <tr><td><kbd>Shift</kbd> + click</td><td>Select a range</td></tr>
+          <tr><td><kbd>Shift</kbd> <kbd>K</kbd></td><td>Keep the selection, or the open title</td></tr>
+          <tr><td><kbd>Shift</kbd> <kbd>L</kbd></td><td>Schedule the selection to leave</td></tr>
+          <tr><td><kbd>Del</kbd> or <kbd>#</kbd></td><td>Delete the selection, or the open title</td></tr>
+          <tr><td><kbd>R</kbd></td><td>Review one title at a time</td></tr>
+          <tr><td><kbd>F</kbd></td><td>Free up a set amount of space</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Close the panel, or clear the selection</td></tr>
+          <tr><td><kbd>?</kbd></td><td>This list</td></tr>
+        </tbody>
+      </table>
+      <h3>In review</h3>
+      <table class="keys">
+        <tbody>
+          <tr><td><kbd>←</kbd></td><td>Add to the delete queue</td></tr>
+          <tr><td><kbd>→</kbd></td><td>Keep</td></tr>
+          <tr><td><kbd>↓</kbd> or <kbd>Space</kbd></td><td>Skip</td></tr>
+          <tr><td><kbd>Z</kbd> or <kbd>Backspace</kbd></td><td>Undo</td></tr>
+        </tbody>
+      </table>
+    </div>
   </dialog>
 
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <dialog class="review" id="review" aria-label="Review"></dialog>
 
-  <script src="/static/app.js?v={{v}}"></script>
+  <div class="toast" id="toast" popover="manual" role="status" aria-live="polite"></div>
+
+  <script src="/static/js/util.js?v={{v}}"></script>
+  <script src="/static/js/list.js?v={{v}}"></script>
+  <script src="/static/js/detail.js?v={{v}}"></script>
+  <script src="/static/js/flows.js?v={{v}}"></script>
+  <script src="/static/js/tabs.js?v={{v}}"></script>
+  <script src="/static/js/main.js?v={{v}}"></script>
 </body>
 </html>

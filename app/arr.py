@@ -1,4 +1,7 @@
 """Optional Sonarr / Radarr integration: find the matching series or movie, delete it, change monitoring."""
+import asyncio
+import json
+import logging
 import re
 import time
 from datetime import datetime, timezone
@@ -6,10 +9,16 @@ from datetime import datetime, timezone
 import httpx
 
 from . import config, db
-from .clients import ApiError, Tautulli
+from .clients import ApiError, Tautulli, plex_client
+
+log = logging.getLogger("shelflife.arr")
 
 
 class NotInLibrary(LookupError):
+    pass
+
+
+class DeleteError(RuntimeError):
     pass
 
 
@@ -80,24 +89,33 @@ def parse_guids(guids: list[str]) -> dict:
     return out
 
 
+def _stored_guids(rating_key: int) -> dict:
+    rows = db.query("SELECT guids FROM items WHERE rating_key=?", (rating_key,))
+    try:
+        return json.loads(rows[0]["guids"]) if rows and rows[0]["guids"] else {}
+    except ValueError:
+        return {}
+
+
 async def plex_guids(rating_key: int) -> dict:
-    """External ids (tvdb/tmdb/imdb) for a Plex item, via Plex if we have a token, else via Tautulli."""
+    """External ids (tvdb/tmdb/imdb) for a Plex item: from the last sync, else Plex, else Tautulli."""
+    ids = _stored_guids(rating_key)
+    if ids:
+        return ids
     guids: list[str] = []
-    server = db.kv_get("server") or {}
-    plex_url = config.PLEX_URL or server.get("url")
-    if config.PLEX_TOKEN and plex_url:
+    plex = plex_client()
+    if plex:
         try:
-            async with httpx.AsyncClient(timeout=30, verify=config.VERIFY_SSL) as c:
-                r = await c.get(f"{plex_url}/library/metadata/{rating_key}",
-                                headers={"X-Plex-Token": config.PLEX_TOKEN, "Accept": "application/json"})
-            meta = (r.json().get("MediaContainer", {}).get("Metadata") or [{}])[0]
+            meta = await plex.metadata(rating_key) or {}
             guids = [g.get("id") for g in meta.get("Guid") or []] + [meta.get("guid") or ""]
-        except (httpx.HTTPError, ValueError):
+        except ApiError:
             guids = []
-    if not guids:
+        finally:
+            await plex.close()
+    if not parse_guids(guids):
         t = Tautulli()
         try:
-            data = await t.call("get_metadata", rating_key=rating_key) or {}
+            data = await t.metadata(rating_key)
             guids = list(data.get("guids") or []) + [data.get("guid") or ""]
         except ApiError:
             guids = []
@@ -138,6 +156,12 @@ def _plex_item(rating_key: int):
         s[0]["show_key"], s[0]["season_index"]
 
 
+def _remember(key: int, service: str, arr_id) -> None:
+    with db.tx() as c:
+        c.execute("INSERT OR REPLACE INTO arr_links(rating_key, service, arr_id, checked_at) VALUES(?,?,?,?)",
+                  (key, service, arr_id, int(time.time())))
+
+
 async def resolve(rating_key: int):
     """Returns (client, kind, arr_object, season_number). client is None when the integration is off."""
     target, key, season = _plex_item(rating_key)
@@ -148,34 +172,84 @@ async def resolve(rating_key: int):
     if not client:
         return None, kind, None, season
     path = "/movie" if kind == "movie" else "/series"
+    try:
+        link = db.query("SELECT arr_id FROM arr_links WHERE rating_key=? AND service=?", (key, client.name))
+        if link and link[0]["arr_id"]:
+            obj = await client.req("GET", f"{path}/{link[0]['arr_id']}", ok404=True)
+            if obj:
+                return client, kind, obj, season
 
-    link = db.query("SELECT arr_id FROM arr_links WHERE rating_key=? AND service=?", (key, client.name))
-    if link and link[0]["arr_id"]:
-        obj = await client.req("GET", f"{path}/{link[0]['arr_id']}", ok404=True)
-        if obj:
-            return client, kind, obj, season
-
-    ids = await plex_guids(key)
-    candidates = []
-    if kind == "movie" and ids.get("tmdb"):
-        candidates = await client.req("GET", path, params={"tmdbId": ids["tmdb"]}) or []
-    elif kind == "show" and ids.get("tvdb"):
-        candidates = await client.req("GET", path, params={"tvdbId": ids["tvdb"]}) or []
-    obj = _pick(candidates if isinstance(candidates, list) else [candidates], ids, target["title"], target["year"])
-    if not obj:
-        obj = _pick(await client.req("GET", path) or [], ids, target["title"], target["year"])
-
-    with db.tx() as c:
-        c.execute("INSERT OR REPLACE INTO arr_links(rating_key, service, arr_id, checked_at) VALUES(?,?,?,?)",
-                  (key, client.name, obj["id"] if obj else None, int(time.time())))
+        ids = await plex_guids(key)
+        candidates = []
+        if kind == "movie" and ids.get("tmdb"):
+            candidates = await client.req("GET", path, params={"tmdbId": ids["tmdb"]}) or []
+        elif kind == "show" and ids.get("tvdb"):
+            candidates = await client.req("GET", path, params={"tvdbId": ids["tvdb"]}) or []
+        obj = _pick(candidates if isinstance(candidates, list) else [candidates], ids, target["title"], target["year"])
+        if not obj:
+            obj = _pick(await client.req("GET", path) or [], ids, target["title"], target["year"])
+    except Exception:
+        await client.close()
+        raise
+    _remember(key, client.name, obj["id"] if obj else None)
     return client, kind, obj, season
+
+
+async def resolve_many(rating_keys: list[int]) -> dict[int, dict]:
+    """Match many Plex items at once, reading each Sonarr/Radarr catalog a single time."""
+    out: dict[int, dict] = {}
+    meta, groups = {}, {"movie": [], "show": []}
+    for rk in rating_keys:
+        target, key, season = _plex_item(rk)
+        if not target:
+            out[rk] = {"error": "No longer in the library"}
+            continue
+        kind = "movie" if target["kind"] == "movie" else "show"
+        meta[rk] = (target, key, season)
+        groups[kind].append(rk)
+
+    for kind, rks in groups.items():
+        if not rks:
+            continue
+        name = "Radarr" if kind == "movie" else "Sonarr"
+        client = radarr() if kind == "movie" else sonarr()
+        if not client:
+            for rk in rks:
+                out[rk] = {"kind": kind, "service": name, "error": f"{name} isn't set up"}
+            continue
+        try:
+            catalog = await client.req("GET", "/movie" if kind == "movie" else "/series") or []
+            by_id = {c.get("id"): c for c in catalog}
+            links = {r["rating_key"]: r["arr_id"] for r in db.query(
+                "SELECT rating_key, arr_id FROM arr_links WHERE service=?", (name,))}
+            sem = asyncio.Semaphore(4)
+
+            async def one(rk):
+                target, key, season = meta[rk]
+                obj = by_id.get(links.get(key))
+                if not obj:
+                    async with sem:
+                        ids = await plex_guids(key)
+                    obj = _pick(catalog, ids, target["title"], target["year"])
+                    _remember(key, name, obj["id"] if obj else None)
+                out[rk] = {"kind": kind, "service": name, "obj": obj, "season": season,
+                           "error": None if obj else f"Not found in {name}"}
+
+            await asyncio.gather(*(one(rk) for rk in rks))
+        except ApiError as e:
+            for rk in rks:
+                out.setdefault(rk, {"kind": kind, "service": name, "error": str(e)})
+        finally:
+            await client.close()
+    return out
 
 
 def describe(client: Arr, kind: str, obj: dict, season) -> dict:
     url = f"{client.public_url}/{'movie' if kind == 'movie' else 'series'}/{obj.get('titleSlug') or obj.get('id')}"
     if kind == "movie":
         return {"service": "radarr", "id": obj["id"], "title": obj.get("title"), "year": obj.get("year"),
-                "monitored": obj.get("monitored"), "has_file": obj.get("hasFile"),
+                "monitored": obj.get("monitored"), "has_file": obj.get("hasFile"), "path": obj.get("path"),
+                "file": (obj.get("movieFile") or {}).get("path"),
                 "size": obj.get("sizeOnDisk") or (obj.get("movieFile") or {}).get("size") or 0, "url": url}
     seasons = []
     for s in sorted(obj.get("seasons") or [], key=lambda s: s.get("seasonNumber", 0)):
@@ -185,7 +259,62 @@ def describe(client: Arr, kind: str, obj: dict, season) -> dict:
                         "size": st.get("sizeOnDisk", 0)})
     return {"service": "sonarr", "id": obj["id"], "title": obj.get("title"), "year": obj.get("year"),
             "monitored": obj.get("monitored"), "status": obj.get("status"), "seasons": seasons,
-            "season": season, "url": url}
+            "season": season, "path": obj.get("path"), "url": url}
+
+
+# ---------------------------------------------------------------- keep list
+
+def kept_title(rating_key: int) -> str | None:
+    """Title of the keep-list entry protecting this item (itself, or its show for a season)."""
+    rows = db.query(
+        "SELECT e.title FROM exclusions e WHERE e.rating_key=? OR e.rating_key=(SELECT show_key FROM seasons "
+        "WHERE rating_key=?)", (rating_key, rating_key))
+    return rows[0]["title"] if rows else None
+
+
+# ---------------------------------------------------------------- planning a delete
+
+def _row(rating_key: int) -> dict | None:
+    """Library row for a movie, show or season, with what the UI and history log need."""
+    it = db.query("SELECT rating_key, kind, title, year, thumb, size, section_id FROM items WHERE rating_key=?",
+                  (rating_key,))
+    if it:
+        return it[0]
+    s = db.query("SELECT s.rating_key, 'season' AS kind, s.title AS season_title, s.season_index, s.size, "
+                 "s.section_id, s.show_key, COALESCE(s.thumb, i.thumb) AS thumb, i.title AS show_title, i.year "
+                 "FROM seasons s LEFT JOIN items i ON i.rating_key=s.show_key WHERE s.rating_key=?", (rating_key,))
+    if not s:
+        return None
+    r = s[0]
+    r["title"] = f"{r['show_title']} – {r['season_title']}"
+    return r
+
+
+async def plan(rating_keys: list[int]) -> list[dict]:
+    """What a bulk delete would do for each item, and which ones can't be deleted (and why)."""
+    resolved = await resolve_many([rk for rk in rating_keys if not kept_title(rk) and _row(rk)])
+    out = []
+    for rk in rating_keys:
+        row = _row(rk)
+        item = {"rating_key": rk, "ok": False, "reason": None}
+        if not row:
+            item.update(title="Unknown title", kind=None, reason="No longer in the library")
+            out.append(item)
+            continue
+        item.update(title=row["title"], kind=row["kind"], year=row.get("year"), size=row.get("size") or 0,
+                    thumb=row.get("thumb"), season_index=row.get("season_index"), show_title=row.get("show_title"))
+        if kept_title(rk):
+            item["reason"] = "On your keep list"
+        else:
+            r = resolved.get(rk) or {}
+            item["service"] = r.get("service")
+            if r.get("error"):
+                item["reason"] = r["error"]
+            else:
+                obj = r["obj"]
+                item.update(ok=True, arr_title=obj.get("title"), arr_year=obj.get("year"), status=obj.get("status"))
+        out.append(item)
+    return out
 
 
 # ---------------------------------------------------------------- actions
@@ -254,10 +383,106 @@ async def set_monitor(client: Arr, series_id: int, monitored: bool, season=None)
     return await client.req("PUT", f"/series/{series_id}", json=series)
 
 
+async def perform_delete(rating_key: int, mode: str = "remove", exclusion: bool = True, unmonitor: bool = True,
+                         source: str = "manual") -> dict:
+    """Delete one movie, show or season through Radarr/Sonarr, then hide it and log it.
+    Shows: mode "remove" takes the series out of Sonarr; "files" deletes episode files and keeps the series.
+    Seasons always keep the series. Raises DeleteError with a readable reason."""
+    if kept_title(rating_key):
+        raise DeleteError("On your keep list")
+    row = _row(rating_key)
+    if not row:
+        raise DeleteError("No longer in the library")
+    try:
+        client, kind, obj, season = await resolve(rating_key)
+    except NotInLibrary as e:
+        raise DeleteError(str(e)) from e
+    except ApiError as e:
+        raise DeleteError(str(e)) from e
+    if not client:
+        raise DeleteError(f"{'Radarr' if kind == 'movie' else 'Sonarr'} isn't set up")
+    try:
+        if not obj:
+            raise DeleteError(f"Not found in {client.name}")
+        title, size = row["title"], row.get("size") or 0
+        if kind == "movie":
+            await client.req("DELETE", f"/movie/{obj['id']}",
+                             params={"deleteFiles": "true", "addImportExclusion": str(bool(exclusion)).lower()})
+            freed = size or obj.get("sizeOnDisk") or 0
+            forget_locally([rating_key], "movie", title, freed)
+            action = "Removed from Radarr" + (", import exclusion added" if exclusion else "")
+            message = f"Removed {title} from Radarr"
+        elif season is not None:
+            res = await delete_episode_files(client, obj, season=season, unmonitor=unmonitor)
+            freed = res["freed"] or size
+            forget_locally([rating_key], "season", title, freed)
+            action = f"Deleted {res['files']} episode files, kept in Sonarr" + \
+                     (", episodes unmonitored" if unmonitor and res["unmonitored_episodes"] else "")
+            message = f"Deleted {res['files']} episode files from {title}"
+        else:
+            show_key = rating_key
+            season_keys = [r["rating_key"] for r in db.query("SELECT rating_key FROM seasons WHERE show_key=?",
+                                                             (show_key,))]
+            if mode == "remove":
+                await client.req("DELETE", f"/series/{obj['id']}",
+                                 params={"deleteFiles": "true", "addImportListExclusion": str(bool(exclusion)).lower()})
+                freed = size or (obj.get("statistics") or {}).get("sizeOnDisk") or 0
+                forget_locally([show_key] + season_keys, "show", title, freed)
+                action = "Removed from Sonarr" + (", import list exclusion added" if exclusion else "")
+                message = f"Removed {title} from Sonarr"
+            elif mode == "files":
+                res = await delete_episode_files(client, obj, season=None, unmonitor=unmonitor)
+                freed = res["freed"] or size
+                # Only the seasons are hidden, so the show comes back as soon as Plex has new episodes.
+                forget_locally(season_keys, "season", title, freed)
+                with db.tx() as c:
+                    c.execute("DELETE FROM items WHERE rating_key=?", (show_key,))
+                action = f"Deleted {res['files']} episode files, kept in Sonarr" + \
+                         (", aired episodes unmonitored" if unmonitor and res["unmonitored_episodes"] else "")
+                message = f"Deleted {res['files']} episode files from {title}; it stays in Sonarr for new episodes"
+            else:
+                raise DeleteError("Unknown delete mode")
+    except ApiError as e:
+        raise DeleteError(str(e)) from e
+    finally:
+        await client.close()
+
+    now = int(time.time())
+    with db.tx() as c:
+        c.execute("INSERT INTO deletions(at, rating_key, kind, title, year, thumb, size, service, action, source) "
+                  "VALUES(?,?,?,?,?,?,?,?,?,?)",
+                  (now, rating_key, row["kind"], title, row.get("year"), row.get("thumb"), int(freed or 0),
+                   client.name, action, source))
+        c.execute("UPDATE leaving SET status='deleted', status_at=?, note=? WHERE rating_key=? AND status='scheduled'",
+                  (now, "Deleted" if source == "leaving" else "Deleted by hand", rating_key))
+    return {"ok": True, "message": message, "freed": int(freed or 0), "action": action,
+            "section_id": row.get("section_id"), "title": title}
+
+
+async def plex_refresh(section_ids) -> None:
+    """Ask Plex to rescan the libraries we deleted from, so the titles disappear there quickly."""
+    ids = sorted({s for s in section_ids if s})
+    if not ids:
+        return
+    plex = plex_client()
+    if not plex:
+        return
+    try:
+        for sid in ids:
+            try:
+                await plex.refresh_section(sid)
+            except ApiError as e:
+                log.warning("Couldn't ask Plex to rescan library %s: %s", sid, e)
+    finally:
+        await plex.close()
+
+
 # ---------------------------------------------------------------- local bookkeeping
 
 def forget_locally(rating_keys: list[int], kind: str, title: str, size: int):
     """Hide deleted titles right away; the next sync rebuilds sizes once Plex catches up."""
+    if not rating_keys:
+        return
     now = int(time.time())
     with db.tx() as c:
         for rk in rating_keys:

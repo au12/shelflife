@@ -5,11 +5,18 @@ def _env(name: str, default: str = "") -> str:
     return os.environ.get(name, default).strip()
 
 
+def _num(name: str, default: float) -> float:
+    try:
+        return float(_env(name, str(default)) or default)
+    except ValueError:
+        return default
+
+
 TAUTULLI_URL = _env("TAUTULLI_URL").rstrip("/")
 TAUTULLI_API_KEY = _env("TAUTULLI_API_KEY")
 
-# Optional: talk to Plex directly for file sizes. Much faster for big TV libraries,
-# and counts every version of a movie (Tautulli only counts one).
+# Optional: talk to Plex directly. Much faster for big TV libraries, counts every version of a movie,
+# adds Open in Plex links and the Plex "Leaving Soon" collection.
 PLEX_URL = _env("PLEX_URL").rstrip("/")
 PLEX_TOKEN = _env("PLEX_TOKEN")
 
@@ -22,11 +29,28 @@ RADARR_URL = _env("RADARR_URL").rstrip("/")
 RADARR_API_KEY = _env("RADARR_API_KEY")
 RADARR_PUBLIC_URL = (_env("RADARR_PUBLIC_URL") or RADARR_URL).rstrip("/")
 
-# Deleted titles stay hidden this long while Plex catches up with the removed files.
-DELETED_HIDE_DAYS = float(_env("DELETED_HIDE_DAYS", "7") or 7)
+# Optional: Overseerr or Jellyseerr (same API), for "requested by".
+OVERSEERR_URL = (_env("OVERSEERR_URL") or _env("JELLYSEERR_URL")).rstrip("/")
+OVERSEERR_API_KEY = _env("OVERSEERR_API_KEY") or _env("JELLYSEERR_API_KEY")
 
-SYNC_INTERVAL_HOURS = float(_env("SYNC_INTERVAL_HOURS", "12") or 12)
-SYNC_CONCURRENCY = int(_env("SYNC_CONCURRENCY", "4") or 4)
+# Optional: notifications. A Discord or Slack webhook, an ntfy topic URL, or any URL that accepts JSON.
+NOTIFY_URL = _env("NOTIFY_URL")
+DIGEST_DAY = (_env("DIGEST_DAY", "sun") or "sun").lower()[:3]   # mon..sun, or "off"
+DIGEST_HOUR = int(_num("DIGEST_HOUR", 9)) % 24
+PUBLIC_URL = _env("PUBLIC_URL").rstrip("/")                     # link back to Shelflife in notifications
+TZ = _env("TZ", "UTC") or "UTC"
+
+# Optional: every folder mounted under here shows its free space, e.g. /mnt/user -> /storage/Array (read-only).
+STORAGE_DIR = _env("STORAGE_DIR", "/storage")
+
+# Deleted titles stay hidden this long while Plex catches up with the removed files.
+DELETED_HIDE_DAYS = _num("DELETED_HIDE_DAYS", 7)
+
+# Quick syncs read only new watch history; a full sync re-reads everything.
+SYNC_INTERVAL_HOURS = _num("SYNC_INTERVAL_HOURS", 6)
+FULL_SYNC_HOURS = _num("FULL_SYNC_HOURS", 24)
+SYNC_CONCURRENCY = max(1, int(_num("SYNC_CONCURRENCY", 4)))
+TICK_SECONDS = max(1, _num("TICK_SECONDS", 60))      # how often background work (Leaving soon, digest) runs
 VERIFY_SSL = _env("VERIFY_SSL", "true").lower() not in ("0", "false", "no")
 
 # Comma-separated library names or section ids to skip (e.g. "Home Videos,Kids Movies")
