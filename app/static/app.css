@@ -179,12 +179,13 @@ input[type=search]::-webkit-search-cancel-button { filter: grayscale(1) brightne
 .sp-seg:hover { filter: brightness(1.12); }
 .sp-seg.is-dim { opacity: .38; }
 .leg.is-dim .dot { opacity: .35; }
-.sp-cols { display: flex; gap: 3px; }
+/* The 8px gap leaves room for each slice's 3px highlight, with space between neighbouring highlights. */
+.sp-cols { display: flex; gap: 8px; }
 .sp-col {
   position: relative; isolation: isolate; display: flex; flex-direction: column; align-items: stretch; gap: 11px;
   flex-basis: 0; min-width: 6px; padding: 0 0 4px; background: none; border: 0; color: var(--muted); font-size: 13px; text-align: left; cursor: pointer;
 }
-.sp-col::before { content: ""; position: absolute; inset: -8px -6px -4px; z-index: -1; border: 1px solid transparent; border-radius: 9px; }
+.sp-col::before { content: ""; position: absolute; inset: -8px -3px -4px; z-index: -1; border: 1px solid transparent; border-radius: 9px; }
 .sp-col:hover::before { background: var(--surface); }
 .sp-col.is-on::before { background: var(--surface); border-color: var(--line); }
 .sp-col:focus-visible { outline: none; }
