@@ -185,6 +185,10 @@ Add `PLEX_TOKEN=x` to exercise the Plex-direct path against the same mock, `SONA
 
 The front end is plain JavaScript with no build step: `app/static/js/` holds one file per area (list, detail panel, bulk actions and Review, tabs, start-up).
 
+### Releasing
+
+Add a `### x.y.z (date)` section to `<Changes>` in `templates/shelflife.xml`, put `x.y.z` in `VERSION`, and push to `main`. The Release workflow tags the commit, publishes a GitHub release with those notes, and builds the `x.y.z`, `x.y` and `latest` images. Pushes that don't change `VERSION` only update `latest`.
+
 ## License
 
 MIT. IBM Plex Sans is bundled under the SIL Open Font License (`app/static/fonts/OFL.txt`).
