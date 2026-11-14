@@ -138,7 +138,7 @@ async def desktop(b):
     check(rows > 10, f"cull list renders rows ({rows})")
     head = await page.text_content("#headline")
     check(bool(re.search(r"\d+(\.\d+)? (TB|GB) in \d+ titles not watched in the last year", head)), f"headline reads naturally ({head.strip()})")
-    check(await page.locator(".leg").count() >= 3, "last-watched legend shows")
+    check(await page.locator("#spectrum button[data-bucket]").count() >= 3, "last-watched legend shows")
     check(await page.locator("#storage .disk").count() == 1, "free space readout shows")
     await contrast(page, "cull list")
 
@@ -185,7 +185,7 @@ async def desktop(b):
     check("sort=" not in page.url, "default sort leaves the URL clean")
 
     # ---- the spectrum filters by bucket
-    await page.click(".leg[data-bucket=never]")
+    await page.click("#spectrum button[data-bucket=never]")
     await page.wait_for_timeout(200)
     check("nobody has ever watched" in (await page.text_content("#headline")) and "bucket=never" in page.url,
           "clicking Never watched in the legend filters to it")

@@ -17,6 +17,9 @@
   <ExtraSearchTerms>plex tautulli sonarr radarr overseerr jellyseerr cleanup storage cull prune unwatched disk space leaving soon maintainerr</ExtraSearchTerms>
   <Requires>A running Tautulli instance connected to your Plex server. Sonarr, Radarr, Overseerr and a Plex token are optional.</Requires>
   <Changes>
+### 0.2.1 (2026-11-14)
+- Last-watched bar: on wide screens each label sits under its own segment, and the whole slice (segment, label and the space around them) is one button
+
 ### 0.2.0 (2026-11-14)
 - New look: filter chips, sortable sticky columns, a last-watched bar you can click to filter, skeleton loading, sync progress bar
 - Bulk delete with a review dialog and live progress; Plex rescans afterwards

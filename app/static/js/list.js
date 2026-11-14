@@ -292,8 +292,40 @@ function renderHeadline() {
 
 function renderSpectrum(total, per) {
   const el = $("#spectrum");
+  S.spectrum = { total, per };
   if (!S.loaded || !total) { el.hidden = true; return; }
   el.hidden = false;
+  // Wide screens: each slice is one button, its label sitting under its own segment.
+  // If any label won't fit under its segment (narrow window, tiny slice), fall back to bar + legend row.
+  if (!matchMedia("(max-width: 760px)").matches && !(S.f.bucket && !per[S.f.bucket].size)) {
+    el.innerHTML = spectrumColumns(total, per);
+    const fits = $$(".sp-col", el).every((c) => $(".sp-lab", c).scrollWidth <= c.clientWidth + 1);
+    if (fits) { el.dataset.w = el.clientWidth; return; }
+  }
+  el.innerHTML = spectrumRow(total, per);
+  el.dataset.w = el.clientWidth;
+}
+
+function bucketLabel(b, p) {
+  return `${esc(b.label)}: ${bytes(p.size)} in ${plural(p.count, noun())}`;
+}
+
+function spectrumColumns(total, per) {
+  const f = S.f;
+  const cols = BUCKETS.filter((b) => per[b.id].size).map((b) => {
+    const p = per[b.id];
+    const on = f.bucket === b.id;
+    const inPct = (p.inSize / p.size) * 100;
+    const note = p.inSize !== p.size && !f.bucket ? `, ${bytes(p.inSize)} of it in this list` : "";
+    return `<button type="button" class="sp-col${on ? " is-on" : ""}${f.bucket && !on ? " is-dim" : ""}" data-bucket="${b.id}" style="flex-grow:${(p.size / total) * 1000};--c:${b.color}"
+      aria-pressed="${on}" aria-label="${bucketLabel(b, p)}${note}. ${on ? "Showing only these" : "Show only these"}" title="${bucketLabel(b, p)}${note}">
+      <span class="sp-seg"><span class="sp-in" style="width:${inPct.toFixed(1)}%"></span></span>
+      <span class="sp-lab"><span class="dot"></span><span class="leg-l">${esc(b.label)}</span><span class="leg-v">${bytes(p.size)}</span></span></button>`;
+  }).join("");
+  return `<div class="sp-cols">${cols}</div>`;
+}
+
+function spectrumRow(total, per) {
   const f = S.f;
   const segs = BUCKETS.map((b) => {
     const p = per[b.id];
@@ -301,17 +333,22 @@ function renderSpectrum(total, per) {
     const on = f.bucket === b.id;
     const inPct = (p.inSize / p.size) * 100;
     return `<span class="sp-seg${on ? " is-on" : ""}${f.bucket && !on ? " is-dim" : ""}" data-bucket="${b.id}" style="flex-grow:${(p.size / total) * 1000};--c:${b.color}"
-      title="${esc(b.label)}: ${bytes(p.size)} in ${plural(p.count, noun())}${p.inSize !== p.size && !f.bucket ? `, ${bytes(p.inSize)} of it in this list` : ""}"><span class="sp-in" style="width:${inPct.toFixed(1)}%"></span></span>`;
+      title="${bucketLabel(b, p)}${p.inSize !== p.size && !f.bucket ? `, ${bytes(p.inSize)} of it in this list` : ""}"><span class="sp-in" style="width:${inPct.toFixed(1)}%"></span></span>`;
   }).join("");
   const legend = BUCKETS.filter((b) => per[b.id].count || f.bucket === b.id).map((b) => {
     const p = per[b.id];
     const on = f.bucket === b.id;
     return `<button type="button" class="leg${on ? " is-on" : ""}${f.bucket && !on ? " is-dim" : ""}" data-bucket="${b.id}" aria-pressed="${on}"
-      aria-label="${esc(b.label)}: ${bytes(p.size)} in ${plural(p.count, noun())}. ${on ? "Showing only these" : "Show only these"}">
+      aria-label="${bucketLabel(b, p)}. ${on ? "Showing only these" : "Show only these"}">
       <span class="dot" style="--c:${b.color}"></span><span class="leg-l"><span class="l-long">${esc(b.label)}</span><span class="l-short">${esc(b.short)}</span></span><span class="leg-v">${bytes(p.size)}</span></button>`;
   }).join("");
-  el.innerHTML = `<div class="sp-bar" aria-hidden="true">${segs}</div><div class="legend">${legend}</div>`;
+  return `<div class="sp-bar" aria-hidden="true">${segs}</div><div class="legend">${legend}</div>`;
 }
+
+new ResizeObserver(() => {
+  const el = $("#spectrum");
+  if (S.spectrum && !el.hidden && String(el.clientWidth) !== el.dataset.w) renderSpectrum(S.spectrum.total, S.spectrum.per);
+}).observe($("#spectrum"));
 
 function toggleBucket(id) {
   S.f.bucket = S.f.bucket === id ? "" : id;
