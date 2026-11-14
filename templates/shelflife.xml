@@ -17,6 +17,9 @@
   <ExtraSearchTerms>plex tautulli sonarr radarr overseerr jellyseerr cleanup storage cull prune unwatched disk space leaving soon maintainerr</ExtraSearchTerms>
   <Requires>A running Tautulli instance connected to your Plex server. Sonarr, Radarr, Overseerr and a Plex token are optional.</Requires>
   <Changes>
+### 0.2.2 (2026-11-14)
+- Last-watched bar: a selected or hovered slice's highlight no longer covers the neighbouring segment and label
+
 ### 0.2.1 (2026-11-14)
 - Last-watched bar: on wide screens each label sits under its own segment, and the whole slice (segment, label and the space around them) is one button
 
