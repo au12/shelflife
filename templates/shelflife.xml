@@ -17,7 +17,7 @@
   <ExtraSearchTerms>plex tautulli sonarr radarr overseerr jellyseerr cleanup storage cull prune unwatched disk space leaving soon maintainerr</ExtraSearchTerms>
   <Requires>A running Tautulli instance connected to your Plex server. Sonarr, Radarr, Overseerr and a Plex token are optional.</Requires>
   <Changes>
-### 0.3.0 (2026-11-16)
+### 0.3.0 (2026-11-17)
 - Issues tab: titles in Plex that Radarr/Sonarr don't have (with an Add to Radarr/Sonarr link), files they have that Plex doesn't show, extra versions or episodes they don't track, titles with no file on record, and two Plex copies matched to one Radarr/Sonarr entry
 - Shelflife now refuses to delete a copy whose files belong to another Plex copy of the same title (for example a 4K library run by a second Radarr), and warns when it can't tell
 - Title matching against Radarr/Sonarr requires the year to agree (give or take one) when it falls back to the title
@@ -52,7 +52,7 @@
 - Optional Sonarr/Radarr deletion and monitoring
 - Sign-in page (set AUTH_USER and AUTH_PASS)
   </Changes>
-  <Date>2026-11-14</Date>
+  <Date>2026-11-17</Date>
   <License>MIT</License>
   <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/desktop-list.png</Screenshot>
   <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/desktop-detail.png</Screenshot>
