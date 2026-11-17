@@ -74,11 +74,6 @@ async def main():
         await shot(d, "desktop-detail")
         await d.keyboard.press("Escape")
 
-        await d.click("#fView [data-view=seasons]")
-        await d.wait_for_selector("#list .row:not(.skel)")
-        await shot(d, "desktop-seasons")
-        await d.click("#fView [data-view=titles]")
-        await d.wait_for_selector("#list .row:not(.skel)")
 
         boxes = d.locator("#list .row .cb input")
         for i in range(4):
@@ -112,6 +107,12 @@ async def main():
         await d.click(".tab[data-tab=history]")
         await d.wait_for_selector("#view-history table")
         await shot(d, "desktop-history")
+        api("POST", "/api/issues/check")
+        while api("GET", "/api/issues")["running"]:
+            time.sleep(0.5)
+        await d.click(".tab[data-tab=issues]")
+        await d.wait_for_selector("#view-issues .isec")
+        await shot(d, "desktop-issues")
 
         m = await b.new_page(viewport={"width": 390, "height": 844}, device_scale_factor=3, is_mobile=True, has_touch=True)
         await m.route("**/api/storage", lambda r: r.fulfill(json=STORAGE))

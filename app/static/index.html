@@ -56,6 +56,7 @@
       <a class="tab" href="/?tab=leaving" data-tab="leaving">Leaving soon <span class="count" id="leavingCount"></span></a>
       <a class="tab" href="/?tab=keep" data-tab="keep">Keep list <span class="count" id="keepCount"></span></a>
       <a class="tab" href="/?tab=history" data-tab="history">History</a>
+      <a class="tab" href="/?tab=issues" data-tab="issues" hidden>Issues <span class="count" id="issuesCount"></span></a>
     </nav>
     <div class="top-right">
       <span class="sync-text" id="syncText" aria-live="polite"></span>
@@ -113,6 +114,7 @@
   <main class="view page" id="view-leaving" hidden></main>
   <main class="view page" id="view-keep" hidden></main>
   <main class="view page" id="view-history" hidden></main>
+  <main class="view page" id="view-issues" hidden></main>
 
   <div class="selbar" id="selbar" role="region" aria-label="Selected titles" hidden>
     <div class="sel-info"><span id="selText"></span><button class="btn ghost icon small" id="selClear" type="button" title="Clear selection (Esc)" aria-label="Clear selection"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button></div>
@@ -226,6 +228,7 @@
   <script src="/static/js/detail.js?v={{v}}"></script>
   <script src="/static/js/flows.js?v={{v}}"></script>
   <script src="/static/js/tabs.js?v={{v}}"></script>
+  <script src="/static/js/issues.js?v={{v}}"></script>
   <script src="/static/js/main.js?v={{v}}"></script>
 </body>
 </html>

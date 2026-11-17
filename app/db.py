@@ -162,6 +162,19 @@ CREATE TABLE IF NOT EXISTS meta_cache (
     fetched_at  INTEGER
 );
 
+-- External ids looked up for Plex titles when the sync doesn't store them (no Plex token)
+CREATE TABLE IF NOT EXISTS guid_cache (
+    rating_key  INTEGER PRIMARY KEY,
+    guids       TEXT,
+    fetched_at  INTEGER
+);
+
+-- Issues the user has dismissed, by issue key
+CREATE TABLE IF NOT EXISTS issue_ignores (
+    key         TEXT PRIMARY KEY,
+    created_at  INTEGER
+);
+
 CREATE TABLE IF NOT EXISTS kv (
     key   TEXT PRIMARY KEY,
     value TEXT

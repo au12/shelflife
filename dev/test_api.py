@@ -1,6 +1,6 @@
-"""End-to-end API checks against dev/mock_tautulli.py. Starts the mock and two Shelflife instances
-(Plex-direct with every integration, and Tautulli-only), then exercises sync, requests, details,
-bulk deletes, history, Leaving soon and notifications.
+"""End-to-end API checks against dev/mock_tautulli.py. Starts the mock and three Shelflife instances
+(Plex-direct with every integration, Tautulli-only, and Tautulli with Sonarr/Radarr), then exercises sync,
+requests, details, the issues check, bulk deletes, history, Leaving soon and notifications.
 
     python dev/test_api.py
 """
@@ -19,6 +19,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MOCK = "http://127.0.0.1:8181"
 FULL = "http://127.0.0.1:8601"
 LITE = "http://127.0.0.1:8602"
+TARR = "http://127.0.0.1:8603"   # Tautulli for the library (no Plex token), plus Sonarr and Radarr
 failures = []
 
 
@@ -72,17 +73,19 @@ def main():
     procs = [subprocess.Popen([sys.executable, os.path.join(ROOT, "dev", "mock_tautulli.py")],
                               stdout=open(os.path.join(tmp, "mock.log"), "w"), stderr=subprocess.STDOUT)]
     time.sleep(2.5)
-    cfg_full, cfg_lite = os.path.join(tmp, "full"), os.path.join(tmp, "lite")
+    cfg_full, cfg_lite, cfg_tarr = os.path.join(tmp, "full"), os.path.join(tmp, "lite"), os.path.join(tmp, "tarr")
     storage = os.path.join(tmp, "storage")
-    for d in (cfg_full, cfg_lite, os.path.join(storage, "Array"), os.path.join(storage, "cache")):
+    for d in (cfg_full, cfg_lite, cfg_tarr, os.path.join(storage, "Array"), os.path.join(storage, "cache")):
         os.makedirs(d)
     procs.append(start(8601, cfg_full, {
         "PLEX_TOKEN": "t", "SONARR_URL": f"{MOCK}/sonarr", "SONARR_API_KEY": "s", "RADARR_URL": f"{MOCK}/radarr",
         "RADARR_API_KEY": "r", "OVERSEERR_URL": f"{MOCK}/seerr", "OVERSEERR_API_KEY": "o",
         "NOTIFY_URL": f"{MOCK}/hooks/test", "STORAGE_DIR": storage, "PUBLIC_URL": "http://shelflife.local"}))
     procs.append(start(8602, cfg_lite, {"OVERSEERR_URL": f"{MOCK}/seerr", "OVERSEERR_API_KEY": "o"}))
+    procs.append(start(8603, cfg_tarr, {"SONARR_URL": f"{MOCK}/sonarr", "SONARR_API_KEY": "s",
+                                        "RADARR_URL": f"{MOCK}/radarr", "RADARR_API_KEY": "r"}))
     try:
-        run(cfg_full)
+        run(cfg_full, cfg_tarr)
     finally:
         for p in procs:
             p.terminate()
@@ -96,7 +99,52 @@ def main():
     sys.exit(1 if failures else 0)
 
 
-def run(cfg_full):
+def check_issues(base, label, movies, cfg):
+    """The mock plants one or more of every kind of mismatch; the check should find exactly those."""
+    req(base, "POST", "/api/issues/check")
+    res = wait(lambda: (lambda r: r if r and r.get("checked_at") and not r["running"] else None)(
+        req(base, "GET", "/api/issues")), 180)
+    check(bool(res) and not res["errors"], f"issues check finishes cleanly ({label})")
+    if not res:
+        return None
+    by = {}
+    for i in res["items"]:
+        by.setdefault((i["type"], i["service"]), []).append(i)
+
+    def names(t, s):
+        return sorted((i.get("plex") or i.get("arr"))["title"] for i in by.get((t, s), []))
+
+    not_in_radarr = sorted(r["title"] for r in movies if r["rating_key"] % 11 == 0)
+    check(names("missing_arr", "radarr") == not_in_radarr, f"in Plex, not in Radarr ({label}): {names('missing_arr', 'radarr')}")
+    check(names("missing_arr", "sonarr") == ["The Lodge"], f"in Plex, not in Sonarr ({label})")
+    check(names("missing_plex", "radarr") == ["Harvest Moon Motel", "The Glass Divide"],
+          f"in Radarr with files, not in Plex; wanted films without files left out ({label})")
+    check(names("missing_plex", "sonarr") == ["Rooftop Gardens"], f"in Sonarr, not in Plex ({label})")
+    check(names("no_file", "radarr") == ["Glass Orchard"], f"Radarr has no file on record ({label})")
+    extra = sorted(r["title"] for r in movies if r["versions"] > 1 and r["title"] != "Blue Hour")
+    check(names("untracked", "radarr") == extra, f"extra versions Radarr doesn't track ({label}): {names('untracked', 'radarr')}")
+    hl = (by.get(("untracked", "sonarr")) or [{}])[0]
+    check(names("untracked", "sonarr") == ["Harbor Lights"] and len(hl.get("seasons") or []) == 1
+          and hl["seasons"][0]["plex"] == hl["seasons"][0]["arr"] + 1, f"an episode Sonarr has no file for, by season ({label})")
+    check(names("stale", "sonarr") == ["Pinecrest"], f"Sonarr files Plex hasn't picked up ({label})")
+    shared = by.get(("shared", "radarr")) or []
+    copies = shared[0]["copies"] if shared else []
+    check(len(shared) == 1 and len(copies) == 2 and [c["matches_arr"] for c in copies] == [False, True],
+          f"two Plex copies of one Radarr movie, and which one Radarr's files are ({label})")
+    known = {("missing_arr", "radarr"), ("missing_arr", "sonarr"), ("missing_plex", "radarr"), ("missing_plex", "sonarr"),
+             ("no_file", "radarr"), ("untracked", "radarr"), ("untracked", "sonarr"), ("stale", "sonarr"), ("shared", "radarr")}
+    check(set(by) == known, f"nothing else is flagged ({label}): {sorted(set(by) - known)}")
+    missing = (by.get(("missing_arr", "radarr")) or [{}])[0]
+    check("/add/new?term=tmdb%3A" in (missing.get("add_url") or ""), f"Add to Radarr link searches by TMDB id ({label})")
+    if cfg:  # no Plex token: ids for unmatched titles were looked up once, then cached
+        conn = sqlite3.connect(os.path.join(cfg, "shelflife.db"))
+        cached = conn.execute("SELECT COUNT(*) FROM guid_cache WHERE guids <> '{}'").fetchone()[0]
+        conn.close()
+        check(cached >= len(not_in_radarr) + 1, f"looked-up ids are cached ({cached})")
+    return res
+
+
+def run(cfg_full, cfg_tarr):
     st = wait(lambda: synced(FULL), 90)
     check(bool(st), "full instance finishes its first sync")
     check(st["integrations"] == {"plex": True, "sonarr": True, "radarr": True, "seerr": True, "notify": True},
@@ -106,7 +154,7 @@ def run(cfg_full):
     titles = req(FULL, "GET", "/api/items")
     movies = [r for r in titles if r["kind"] == "movie"]
     shows = [r for r in titles if r["kind"] == "show"]
-    check(len(movies) == 48 and len(shows) == 18, f"library has 48 movies and 18 shows ({len(movies)}, {len(shows)})")
+    check(len(movies) == 49 and len(shows) == 18, f"library has 49 movies (one film twice) and 18 shows ({len(movies)}, {len(shows)})")
     check(all(r["quality_label"] for r in titles), "every title has a quality label")
     check(any(r["is4k"] for r in movies) and any("+" in (r["quality_label"] or "") for r in shows),
           "4K movies and mixed-quality shows are labelled")
@@ -131,6 +179,40 @@ def run(cfg_full):
     check(detail["item"]["plex_url"] is not None, "Open in Plex link with a token")
     store = req(FULL, "GET", "/api/storage")
     check(len(store) == 1 and store[0]["total"] > 0, f"storage readout deduplicates one filesystem ({store})")
+
+    # ---- issues, before anything is deleted: Plex-direct and Tautulli-only matching find the same things
+    res = check_issues(FULL, "Plex token", movies, None)
+    check(bool(wait(lambda: synced(TARR), 120)), "Tautulli + Sonarr/Radarr instance finishes its first sync")
+    check_issues(TARR, "Tautulli only", movies, cfg_tarr)
+    if res:
+        st = req(FULL, "GET", "/api/status")
+        check(st["issues"]["count"] == len(res["items"]), f"status counts issues ({st['issues']})")
+        key = res["items"][0]["key"]
+        after = req(FULL, "POST", "/api/issues/ignore", {"key": key})
+        listed = {i["key"]: i for i in req(FULL, "GET", "/api/issues")["items"]}
+        check(after["count"] == len(res["items"]) - 1 and listed[key]["ignored"], "ignoring an issue hides it from the count")
+        req(FULL, "POST", "/api/issues/ignore", {"key": key, "ignored": False})
+        check(req(FULL, "GET", "/api/status")["issues"]["count"] == len(res["items"]), "and stop ignoring brings it back")
+        check(req(FULL, "POST", "/api/issues/ignore", {"key": "nonsense key"})["_status"] == 400, "unknown issue keys refused")
+        shared = next(i for i in res["items"] if i["type"] == "shared")
+        big, small = shared["copies"]
+        plan = {p["rating_key"]: p for p in req(FULL, "POST", "/api/arr/plan", {
+            "rating_keys": [big["rating_key"], small["rating_key"]]})["items"]}
+        check(not plan[big["rating_key"]]["ok"] and "would remove that one instead" in plan[big["rating_key"]]["reason"],
+              "delete refuses the copy whose files Radarr doesn't manage")
+        check(plan[small["rating_key"]]["ok"] and not plan[small["rating_key"]].get("warning"),
+              "the copy Radarr does manage can still be deleted")
+        info = req(FULL, "GET", f"/api/arr/{big['rating_key']}")
+        check(bool(info.get("blocked")), "the detail panel says why the other copy can't be deleted")
+        job = req(FULL, "POST", "/api/jobs/delete", {"items": [{"rating_key": big["rating_key"]}]})
+        done = wait(lambda: (lambda j: j if j["finished_at"] else None)(req(FULL, "GET", f"/api/jobs/{job['id']}")), 30)
+        check(bool(done) and not done["results"][0]["ok"] and req(FULL, "GET", f"/api/arr/{small['rating_key']}")["matched"],
+              "a delete job refuses it too, and Radarr's movie is untouched")
+        unmatched = next(i for i in res["items"] if i["type"] == "missing_arr")
+        info = req(FULL, "GET", f"/api/arr/{unmatched['plex']['rating_key']}")
+        check(not info["matched"] and "/add/new?term=" in (info.get("add_url") or ""), "an unmatched title links to Add in Radarr")
+    check(req(LITE, "GET", "/api/issues")["enabled"] == {"sonarr": False, "radarr": False}
+          and req(LITE, "POST", "/api/issues/check")["_status"] == 400, "no issues check without Sonarr or Radarr")
 
     # ---- incremental sync picks up a new play
     stale = next(r for r in movies if not r["last_played"])

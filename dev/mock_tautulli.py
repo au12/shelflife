@@ -199,6 +199,19 @@ for i, rk in enumerate(rng.sample(sorted(items), 16)):
         "seasons": [] if is_movie else [{"seasonNumber": n} for n in range(1, rng.randint(1, 3) + 1)],
     })
 
+# A second Plex copy of one film, with the same TMDB/IMDb ids: the setup where a 4K library is run by a
+# second Radarr. Both copies match the one Radarr entry Shelflife knows, which the Issues tab flags.
+_orig = next(k for k, v in items.items() if v["media_type"] == "movie" and v["title"] == "Blue Hour")
+_dup = nk()
+items[_dup] = {**items[_orig], "rating_key": _dup, "title": "Blue Hour", "dup_of": _orig, "video_resolution": "4k",
+               "file_size": int(61.5 * GB), "video_codec": "hevc", "hdr": "Dolby Vision · HDR10",
+               "thumb": f"/library/metadata/{_dup}/thumb/1", "art": f"/library/metadata/{_dup}/art/1",
+               "file": f"/data/media/movies-4k/Blue Hour ({items[_orig]['year']})/Blue Hour [Remux-2160p].mkv",
+               "folder": f"/data/media/movies-4k/Blue Hour ({items[_orig]['year']})"}
+items[_dup].pop("extra_version", None)
+add_history(items[_dup], None, 101, "maple", NOW - 3 * DAY - 4000, 118 * 60)
+history.sort(key=lambda h: h["date"], reverse=True)
+
 app = FastAPI()
 calls = {"refresh": [], "promoted": [], "edits": []}
 notifications = []
@@ -222,6 +235,7 @@ def guids_for(rk):
     it = items.get(rk)
     if not it:
         return []
+    rk = it.get("dup_of") or rk  # a second copy of a film carries the same ids
     if it["media_type"] == "movie":
         return [f"imdb://tt{rk:07d}", f"tmdb://{rk + 100000}"]
     return [f"tvdb://{rk + 200000}", f"tmdb://{rk + 300000}"]
@@ -477,16 +491,17 @@ def iso(ts):
 
 radarr_movies = {}
 for rk, it in items.items():
-    if it["media_type"] == "movie" and rk % 11:  # a few movies aren't in Radarr
+    if it["media_type"] == "movie" and rk % 11 and not it.get("dup_of"):  # a few movies aren't in Radarr
         mid = len(radarr_movies) + 1
+        primary = it["file_size"] - (it["extra_version"]["file_size"] if it.get("extra_version") else 0)
         radarr_movies[mid] = {"id": mid, "title": it["title"], "year": it["year"], "tmdbId": rk + 100000,
                               "imdbId": f"tt{rk:07d}", "titleSlug": f"{slug(it['title'])}-{rk + 100000}",
-                              "monitored": True, "hasFile": True, "sizeOnDisk": it["file_size"],
-                              "path": it["folder"], "movieFile": {"path": it["file"], "size": it["file_size"]}}
+                              "monitored": True, "hasFile": True, "sizeOnDisk": primary,
+                              "path": it["folder"], "movieFile": {"path": it["file"], "size": primary}}
 
 sonarr_series, sonarr_eps, sonarr_files = {}, {}, {}
 for rk, it in items.items():
-    if it["media_type"] != "show":
+    if it["media_type"] != "show" or it["title"] == "The Lodge":  # The Lodge isn't in Sonarr
         continue
     sid = len(sonarr_series) + 1
     my_seasons = sorted((sv for sv in seasons.values() if sv["parent_rating_key"] == rk), key=lambda x: x["media_index"])
@@ -513,6 +528,61 @@ for rk, it in items.items():
                                "episodeFileId": 0}
 
 
+# ---- deliberate mismatches for the Issues tab
+# Radarr has this film but no file on record
+_nofile = next(m for m in radarr_movies.values() if m["title"] == "Glass Orchard")
+_nofile.update(hasFile=False, sizeOnDisk=0)
+_nofile.pop("movieFile")
+# In Radarr with a file, but not in Plex; plus one wanted film with no file (not an issue)
+for _title, _year, _size in (("Harvest Moon Motel", 2019, 18.4), ("The Glass Divide", 2021, 27.9),
+                             ("Coming Attractions", 2026, 0)):
+    _mid = len(radarr_movies) + 1
+    radarr_movies[_mid] = {"id": _mid, "title": _title, "year": _year, "tmdbId": 990000 + _mid,
+                           "imdbId": f"tt99{_mid:05d}", "titleSlug": f"{slug(_title)}-{990000 + _mid}",
+                           "monitored": True, "hasFile": bool(_size), "sizeOnDisk": int(_size * GB),
+                           "path": f"/data/media/movies/{_title} ({_year})"}
+    if _size:
+        radarr_movies[_mid]["movieFile"] = {"path": f"/data/media/movies/{_title} ({_year})/{_title} ({_year}).mkv",
+                                            "size": int(_size * GB)}
+# In Sonarr with files, but not in Plex
+_sid = len(sonarr_series) + 1
+sonarr_series[_sid] = {"id": _sid, "title": "Rooftop Gardens", "year": 2020, "tvdbId": 880001,
+                       "titleSlug": "rooftop-gardens", "monitored": True, "path": "/data/media/tv/Rooftop Gardens",
+                       "status": "ended", "seasons": [{"seasonNumber": 1, "monitored": True}]}
+for _e in range(1, 7):
+    _fid = len(sonarr_files) + 1
+    sonarr_files[_fid] = {"id": _fid, "seriesId": _sid, "seasonNumber": 1, "size": int(1.3 * GB),
+                          "path": f"/data/media/tv/Rooftop Gardens/Season 01/Rooftop Gardens - S01E{_e:02d}.mkv",
+                          "plex_rk": None}
+    _eid = len(sonarr_eps) + 1
+    sonarr_eps[_eid] = {"id": _eid, "seriesId": _sid, "seasonNumber": 1, "episodeNumber": _e,
+                        "airDateUtc": iso(NOW - 900 * DAY), "monitored": True, "hasFile": True, "episodeFileId": _fid}
+
+
+def _series_named(title):
+    return next(v for v in sonarr_series.values() if v["title"] == title)
+
+
+# Plex has an episode Sonarr has no file for
+_hl = _series_named("Harbor Lights")
+_f = next(f for f in sonarr_files.values() if f["seriesId"] == _hl["id"] and f["seasonNumber"] == 1)
+sonarr_files.pop(_f["id"])
+for _ep in sonarr_eps.values():
+    if _ep["episodeFileId"] == _f["id"]:
+        _ep["hasFile"], _ep["episodeFileId"] = False, 0
+# Sonarr has files for two episodes Plex hasn't picked up yet
+_pc = _series_named("Pinecrest")
+_last = max(sn["seasonNumber"] for sn in _pc["seasons"])
+for _e in (50, 51):
+    _fid = max(sonarr_files) + 1
+    sonarr_files[_fid] = {"id": _fid, "seriesId": _pc["id"], "seasonNumber": _last, "size": int(1.1 * GB),
+                          "path": f"/data/media/tv/Pinecrest/Season {_last:02d}/Pinecrest - S{_last:02d}E{_e}.mkv",
+                          "plex_rk": None}
+    _eid = max(sonarr_eps) + 1
+    sonarr_eps[_eid] = {"id": _eid, "seriesId": _pc["id"], "seasonNumber": _last, "episodeNumber": _e,
+                        "airDateUtc": iso(NOW - 2 * DAY), "monitored": True, "hasFile": True, "episodeFileId": _fid}
+
+
 def series_out(s):
     out = dict(s)
     out["seasons"] = []
@@ -524,7 +594,9 @@ def series_out(s):
         total += size
         out["seasons"].append({**sn, "statistics": {"episodeFileCount": len(files), "totalEpisodeCount": len(eps),
                                                    "sizeOnDisk": size}})
-    out["statistics"] = {"sizeOnDisk": total}
+    out["statistics"] = {"sizeOnDisk": total,
+                         "episodeFileCount": sum(x["statistics"]["episodeFileCount"] for x in out["seasons"]),
+                         "totalEpisodeCount": sum(x["statistics"]["totalEpisodeCount"] for x in out["seasons"])}
     return out
 
 

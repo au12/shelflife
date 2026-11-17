@@ -232,7 +232,7 @@ function renderDetail() {
   if (linked) acts.push(`<a class="btn ghost" href="${esc(A.url)}" target="_blank" rel="noopener">${icon("external")}Show in ${SERVICE[svc]}</a>`);
   let delBtn = "";
   if (arrOn) {
-    const why = blocked ? "On your keep list. Stop keeping it to delete." : A && A.loading ? `Checking ${SERVICE[svc]}…`
+    const why = blocked ? "On your keep list. Stop keeping it to delete." : A && A.blocked ? A.blocked : A && A.loading ? `Checking ${SERVICE[svc]}…`
       : A && A.error ? A.error : A && !A.matched ? `Not found in ${SERVICE[svc]}` : "";
     delBtn = `<button class="btn warn" id="dDelete" type="button"${why ? ` disabled title="${esc(why)}"` : ""}>${icon("trash")}${isSeason ? "Delete season…" : "Delete…"}</button>`;
   }
@@ -240,9 +240,13 @@ function renderDetail() {
   if (A) {
     if (A.loading) arrLine = `<p class="arr-note">Checking ${SERVICE[svc]}…</p>`;
     else if (A.error) arrLine = `<p class="arr-note is-err">${icon("alert")}${SERVICE[svc]}: ${esc(A.error)}</p>`;
-    else if (!A.matched) arrLine = `<p class="arr-note">${icon("info")}Not found in ${SERVICE[svc]}, so it can't be deleted from here.</p>`;
+    else if (!A.matched) {
+      arrLine = `<p class="arr-note">${icon("info")}Not found in ${SERVICE[svc]}, so it can't be deleted from here.${A.add_url
+        ? ` <a href="${esc(A.add_url)}" target="_blank" rel="noopener">Add it to ${SERVICE[svc]}</a>` : ""}</p>`;
+    }
     else if (svc === "sonarr" && !isSeason) arrLine = `<label class="switch"><input type="checkbox" id="dMonSeries" ${A.monitored ? "checked" : ""}><span class="knob"></span>Monitored in Sonarr</label>`;
     else if (arrSeason) arrLine = `<label class="switch"><input type="checkbox" id="dMonSeason" ${arrSeason.monitored ? "checked" : ""}><span class="knob"></span>Season ${arrSeason.number} monitored in Sonarr</label>`;
+    if (A.matched && (A.blocked || A.warning)) arrLine += `<p class="caution">${icon("alert")}${esc(A.blocked ? `${A.blocked}.` : A.warning)}</p>`;
   }
 
   // ---- notes

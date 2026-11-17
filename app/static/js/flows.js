@@ -42,7 +42,8 @@ function planItemHtml(i) {
   const sub = i.ok ? `${KIND[i.kind] || ""}${i.service ? ` · ${SERVICE[i.service]}` : ""}${i.kind === "show" && i.status === "continuing" ? " · still airing" : ""}` : i.reason;
   return `<li class="pl-item${i.ok ? "" : " is-bad"}">${posterImg(i.thumb, 120, "poster tiny")}
     <span class="pl-main"><span class="pl-title">${esc(name)}${i.year && i.kind !== "season" ? ` <span class="yr">${i.year}</span>` : ""}</span>
-    <span class="pl-sub">${i.ok ? "" : icon("alert")}${esc(sub || "")}</span></span>
+    <span class="pl-sub">${i.ok ? "" : icon("alert")}${esc(sub || "")}</span>
+    ${i.warning ? `<span class="pl-warn">${icon("alert")}${esc(i.warning)}</span>` : ""}</span>
     <span class="pl-size">${i.size ? bytes(i.size) : ""}</span></li>`;
 }
 
@@ -80,6 +81,12 @@ function renderPlan(P) {
       <p class="hint">If anyone watches one before then, it stays and comes off the list.${collectionHint()}</p>`);
   }
 
+  const warned = ok.filter((i) => i.warning);
+  if (single && first.warning) parts.push(`<p class="caution">${icon("alert")}${esc(first.warning)}</p>`);
+  else if (warned.length) {
+    parts.push(`<p class="caution">${icon("alert")}${warned.length === 1 ? "One of these shares" : `${warned.length} of these share`} a Radarr or Sonarr entry with another Plex copy. Check the list below.</p>`);
+  }
+
   if (has("show")) {
     parts.push(`<div class="choices" role="radiogroup" aria-label="What to do with ${single ? "the show" : "shows"}">${!single ? '<p class="choices-l">For shows</p>' : ""}
       ${Object.entries(MODES).map(([m, [label, desc]]) => `<label class="choice"><input type="radio" name="pMode" value="${m}" ${P.mode === m ? "checked" : ""}>
@@ -90,9 +97,9 @@ function renderPlan(P) {
   if (has("movie") || has("show")) parts.push(`<label class="check" id="pExclWrap"><input type="checkbox" id="pExcl" checked> ${exclLabel}</label>`);
   if (has("season") || has("show")) parts.push(`<label class="check" id="pUnmonWrap"><input type="checkbox" id="pUnmon" checked> <span id="pUnmonLabel"></span></label>`);
 
-  if (!single || bad.length) {
+  if (!single) {
     const list = [...ok, ...bad];
-    parts.push(`<details class="plan"${single || bad.length ? " open" : ""}><summary>${single ? "Details" : `${plural(ok.length, "title")} to ${isDel ? "delete" : "schedule"}${bad.length ? `, ${bad.length} can't be` : ""}`}</summary>
+    parts.push(`<details class="plan"${bad.length || warned.length ? " open" : ""}><summary>${single ? "Details" : `${plural(ok.length, "title")} to ${isDel ? "delete" : "schedule"}${bad.length ? `, ${bad.length} can't be` : ""}`}</summary>
       <ul class="plan-list">${list.map(planItemHtml).join("")}</ul></details>`);
   }
   if (isDel && ok.length >= CONFIRM_AT) {

@@ -34,6 +34,7 @@ On its own Shelflife only reads. Connect Sonarr and Radarr and it can delete wha
 - **Delete, one or many.** Select rows and press Delete: Shelflife checks each title against Sonarr/Radarr, shows what can and can't be deleted and how much space comes back, then works through them with live progress. Deleting ten or more asks you to type the count. Plex is asked to rescan afterwards.
 - **Leaving soon.** Schedule titles to be deleted in N days (14 by default). If anyone watches one before then, it stays. With a Plex token they also appear in a "Leaving Soon" collection on Plex Home, so the household sees what's going. Extend, cancel or delete now from the Leaving soon tab.
 - **History.** Everything deleted, when, how much it freed and how it was deleted, with the running total.
+- **Issues.** Where Plex and Sonarr/Radarr disagree: titles in Plex that Radarr or Sonarr doesn't have (with an **Add to Radarr / Sonarr** link), files Radarr or Sonarr has that Plex doesn't show, extra versions or episodes they don't track, titles they have no file for, and two Plex copies that point at one Radarr/Sonarr entry. Rechecked after every sync; ignore anything that's intentional.
 - **Sonarr monitoring.** Toggle monitoring for a whole show and for each season from the panel. **Show in Sonarr / Radarr** and **Open in Plex** links.
 - **Weekly digest (optional).** A summary to Discord, Slack, ntfy or any webhook: the biggest titles nobody has watched in a year, what's leaving this week and how much was freed. Leaving soon deletions are reported as they happen, with a heads-up the day before.
 
@@ -47,9 +48,9 @@ Works on phones (installable as a PWA), the filters live in the URL so a view ca
 | --- | --- |
 | ![Delete dialog](docs/screenshots/desktop-delete.png) | ![Leaving soon tab](docs/screenshots/desktop-leaving.png) |
 
-| Seasons view | History |
+| Issues | History |
 | --- | --- |
-| ![Seasons view](docs/screenshots/desktop-seasons.png) | ![History tab](docs/screenshots/desktop-history.png) |
+| ![Issues tab](docs/screenshots/desktop-issues.png) | ![History tab](docs/screenshots/desktop-history.png) |
 
 <p>
   <img src="docs/screenshots/mobile-list.png" width="260" alt="Cull list on a phone">
@@ -134,7 +135,7 @@ With `PLEX_TOKEN` set, Shelflife asks Plex for every movie and episode in one re
 
 ### Deleting with Sonarr and Radarr
 
-Delete buttons appear once Shelflife finds the title in Sonarr or Radarr. It matches on the TVDB/TMDB/IMDb ids Plex has for the title, then falls back to title and year. If a title isn't found, the dialog says so and leaves it out.
+Delete buttons appear once Shelflife finds the title in Sonarr or Radarr. It matches on the TVDB/TMDB/IMDb ids Plex has for the title, then falls back to the title, which then has to agree on the year (give or take one) so a remake with the same name never matches. If a title isn't found, the dialog says so and leaves it out; the Issues tab lists every title that isn't found.
 
 | What you delete | What happens |
 | --- | --- |
@@ -145,6 +146,8 @@ Delete buttons appear once Shelflife finds the title in Sonarr or Radarr. It mat
 
 Every delete goes through a confirmation that lists exactly what will go and how much space it frees. Titles on the keep list (or seasons of a kept show) can't be deleted until you stop keeping them; this is checked again at the moment of deletion.
 
+If two Plex copies match one Radarr movie or Sonarr series (typically a 4K library run by a second Radarr that Shelflife isn't connected to), a delete through that entry removes whichever copy it manages. Shelflife compares sizes: it refuses to delete a copy whose files are clearly the other one, and warns when it can't tell.
+
 After a delete, Shelflife asks Plex to rescan the library (with a Plex token). Until Plex catches up, deleted titles stay hidden for `DELETED_HIDE_DAYS` (7 by default) so they don't come back on the next sync.
 
 ### Leaving soon
@@ -152,6 +155,21 @@ After a delete, Shelflife asks Plex to rescan the library (with a Plex token). U
 Scheduling a title gives it a delete date. Shelflife checks every minute: anything watched since it was scheduled (by someone whose plays count, for longer than your minimum) is spared and taken off the list; anything due is deleted through Sonarr or Radarr, after a fresh sync so a last-minute watch still counts. A failed delete is retried every hour for a day, then shown under **Needs attention**. Adding a title to the keep list also takes it off Leaving soon.
 
 With a Plex token, each library gets a "Leaving Soon" collection holding exactly the scheduled titles, pinned to Plex Home by default. You can rename it or turn it off in settings. Shelflife only edits collections it created (it marks them in the summary).
+
+### Issues
+
+After each sync (and whenever you press **Check now**), Shelflife reads the full Radarr and Sonarr catalogs and matches every Plex movie and show the same way it does before a delete, so the tab shows exactly what a delete would do. It flags:
+
+| Issue | What it means |
+| --- | --- |
+| Not in Radarr / Sonarr | Plex has it, Radarr or Sonarr doesn't: Shelflife can't delete it and nothing upgrades it. **Add to Radarr / Sonarr** opens their add page already searching for it by TMDB/TVDB id. |
+| In Radarr / Sonarr, not in Plex | They have files for it, but it isn't in any Plex library Shelflife reads (often a folder outside your Plex libraries, or a library in `IGNORE_LIBRARIES`). |
+| Same Radarr movie / Sonarr show | Two Plex copies match one entry. The copy whose size matches Radarr's/Sonarr's files is marked. |
+| No file in Radarr / Sonarr | Plex plays it but they have no file on record, so a monitored title may download again. |
+| More in Plex than Radarr tracks / Episodes Sonarr doesn't track | Usually an extra version, or episodes added by hand. Deleting through Radarr/Sonarr can leave those behind. |
+| Plex is behind Radarr / Sonarr | They have a newer file or more episodes than Plex shows; a Plex library scan fixes it. |
+
+Movies compare total size on disk (a gap of more than 1% and 200 MB counts); shows compare episode counts, season by season. **Ignore** hides an issue for good (it stays hidden after later checks); **Ignore all** does a whole group, handy for a home-videos library Radarr was never meant to manage. Without a Plex token, ids for titles that don't match by name are looked up through Tautulli and cached for a month.
 
 ### Signing in
 

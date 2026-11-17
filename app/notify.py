@@ -129,6 +129,12 @@ def digest() -> tuple[str, list[str]] | None:
                      (now - 7 * 86400,))[0]
     if freed["n"]:
         lines += ["", f"Freed this week: {human(freed['s'])} from {freed['n']} deletions."]
+
+    from . import issues  # late import: issues pulls in sync, which isn't needed for anything else here
+    n = issues.summary()["count"]
+    if n:
+        lines += ["", f"{n} {'place' if n == 1 else 'places'} where Plex and Sonarr/Radarr disagree. "
+                      "See the Issues tab."]
     return "Shelflife weekly digest", lines
 
 

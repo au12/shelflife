@@ -11,16 +11,19 @@ async function showTab(tab, { push = false } = {}) {
   const changed = S.tab !== tab;
   S.tab = tab;
   $$(".tab").forEach((a) => { if (a.dataset.tab === tab) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
+  const current = $(".tab[aria-current]");
+  if (current) current.scrollIntoView({ block: "nearest", inline: "nearest" });  // the tab row scrolls on phones
   for (const t of TABS) $(`#view-${t}`).hidden = t !== tab;
   closePop();
   renderSelbar();
   if (push && changed) history.pushState({ d: 0 }, "", urlFor({ item: null }));
   else writeUrl();
   if (changed) scrollTo(0, 0);
-  document.title = tab === "cull" ? "Shelflife" : `${{ leaving: "Leaving soon", keep: "Keep list", history: "History" }[tab]} · Shelflife`;
+  document.title = tab === "cull" ? "Shelflife" : `${{ leaving: "Leaving soon", keep: "Keep list", history: "History", issues: "Issues" }[tab]} · Shelflife`;
   if (tab === "leaving") await renderLeaving();
   if (tab === "keep") await renderKeep();
   if (tab === "history") await renderHistory();
+  if (tab === "issues") await renderIssues();
 }
 
 /* ------------------------------------------------------------ Leaving soon */

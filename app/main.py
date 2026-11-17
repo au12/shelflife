@@ -11,7 +11,7 @@ from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import arr, auth, config, db, jobs, leaving, media, notify, seerr, stats, storage, sync, tasks
+from . import arr, auth, config, db, issues, jobs, leaving, media, notify, seerr, stats, storage, sync, tasks
 from .clients import ApiError, Tautulli
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -124,6 +124,7 @@ def status():
         "leaving": {"scheduled": sched["n"], "next": sched["next"], "size": sched["size"]},
         "keep_count": db.query("SELECT COUNT(*) AS n FROM exclusions")[0]["n"],
         "digest": notify.schedule_text(),
+        "issues": issues.summary(),
     }
 
 
@@ -366,11 +367,42 @@ async def arr_info(rating_key: int):
         return {"service": service, "enabled": False}
     try:
         if not obj:
-            return {"service": service, "enabled": True, "matched": False}
-        return {"enabled": True, "matched": True, "kept": bool(arr.kept_title(rating_key)),
-                **arr.describe(client, kind, obj, season)}
+            target, key, _ = arr._plex_item(rating_key)
+            ids = await arr.plex_guids(key) if key else {}
+            return {"service": service, "enabled": True, "matched": False,
+                    "add_url": arr.add_url(kind, ids, target["title"], target["year"]) if target else None}
+        blocked, warning = arr.shared_check(client.name, kind, obj, arr._plex_item(rating_key)[1])
+        return {"enabled": True, "matched": True, "kept": bool(arr.kept_title(rating_key)), "blocked": blocked,
+                "warning": warning, **arr.describe(client, kind, obj, season)}
     finally:
         await client.close()
+
+
+# ---------------------------------------------------------------- issues
+
+@app.get("/api/issues")
+def issues_list():
+    return issues.result()
+
+
+@app.post("/api/issues/check")
+async def issues_check():
+    if not any(arr.enabled().values()):
+        raise HTTPException(400, "Connect Sonarr or Radarr first")
+    issues.start()
+    await asyncio.sleep(0.05)
+    return issues.result()
+
+
+@app.post("/api/issues/ignore")
+def issues_ignore(body: dict = Body(...)):
+    keys = [str(k)[:200] for k in ([body.get("key")] + list(body.get("more") or []))[:5000] if k]
+    keys = [k for k in keys if re.fullmatch(r"[a-z_]+:[\w:]+", k)]
+    if not keys:
+        raise HTTPException(400, "Unknown issue")
+    for k in keys:
+        issues.set_ignored(k, bool(body.get("ignored", True)))
+    return issues.summary()
 
 
 @app.post("/api/arr/{rating_key}/delete")

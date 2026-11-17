@@ -1,8 +1,8 @@
-"""The background loop: scheduled syncs, Leaving soon, and the weekly digest."""
+"""The background loop: scheduled syncs, Leaving soon, the weekly digest, and the issues check."""
 import asyncio
 import logging
 
-from . import config, leaving, notify, sync
+from . import config, issues, leaving, notify, sync
 
 log = logging.getLogger("shelflife.tasks")
 
@@ -17,6 +17,7 @@ async def loop() -> None:
                 await sync.run_sync()
             await leaving.tick()
             await notify.tick()
+            issues.tick()
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001 - keep the loop alive; problems show up in the log and the UI

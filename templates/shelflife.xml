@@ -8,7 +8,7 @@
   <Privileged>false</Privileged>
   <Icon>https://raw.githubusercontent.com/au12/shelflife/main/icon.png</Icon>
   <WebUI>http://[IP]:[PORT:8585]/</WebUI>
-  <Overview>Find the biggest, least-watched movies and TV shows in your Plex libraries and reclaim the space. Shelflife reads watch history from Tautulli and lists everything nobody has watched in a while (or ever), sorted by size on disk, with a seasons view, per-title watch history and a keep list for titles you never want to see again. Review titles one at a time, free up a set amount of space in a click, and see who requested what (Overseerr/Jellyseerr). Optionally connects to Sonarr and Radarr to delete movies, shows or seasons in bulk, or to schedule them to leave in a couple of weeks unless someone watches them, shown to everyone in a Plex "Leaving Soon" collection. Weekly digest to Discord, Slack, ntfy or a webhook. Read-only unless you connect Sonarr or Radarr.</Overview>
+  <Overview>Find the biggest, least-watched movies and TV shows in your Plex libraries and reclaim the space. Shelflife reads watch history from Tautulli and lists everything nobody has watched in a while (or ever), sorted by size on disk, with a seasons view, per-title watch history and a keep list for titles you never want to see again. Review titles one at a time, free up a set amount of space in a click, and see who requested what (Overseerr/Jellyseerr). Optionally connects to Sonarr and Radarr to delete movies, shows or seasons in bulk, or to schedule them to leave in a couple of weeks unless someone watches them, shown to everyone in a Plex "Leaving Soon" collection. Weekly digest to Discord, Slack, ntfy or a webhook. An Issues tab shows where Plex and Sonarr/Radarr disagree. Read-only unless you connect Sonarr or Radarr.</Overview>
   <Support>https://github.com/au12/shelflife/issues</Support>
   <Project>https://github.com/au12/shelflife</Project>
   <TemplateURL>https://raw.githubusercontent.com/au12/shelflife/main/templates/shelflife.xml</TemplateURL>
@@ -17,6 +17,12 @@
   <ExtraSearchTerms>plex tautulli sonarr radarr overseerr jellyseerr cleanup storage cull prune unwatched disk space leaving soon maintainerr</ExtraSearchTerms>
   <Requires>A running Tautulli instance connected to your Plex server. Sonarr, Radarr, Overseerr and a Plex token are optional.</Requires>
   <Changes>
+### 0.3.0 (2026-11-16)
+- Issues tab: titles in Plex that Radarr/Sonarr don't have (with an Add to Radarr/Sonarr link), files they have that Plex doesn't show, extra versions or episodes they don't track, titles with no file on record, and two Plex copies matched to one Radarr/Sonarr entry
+- Shelflife now refuses to delete a copy whose files belong to another Plex copy of the same title (for example a 4K library run by a second Radarr), and warns when it can't tell
+- Title matching against Radarr/Sonarr requires the year to agree (give or take one) when it falls back to the title
+- Weekly digest mentions open issues
+
 ### 0.2.2 (2026-11-14)
 - Last-watched bar: a selected or hovered slice's highlight no longer covers the neighbouring segment and label
 
@@ -54,6 +60,7 @@
   <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/desktop-delete.png</Screenshot>
   <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/desktop-leaving.png</Screenshot>
   <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/desktop-history.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/desktop-issues.png</Screenshot>
   <Screenshot>https://raw.githubusercontent.com/au12/shelflife/main/docs/screenshots/mobile-list.png</Screenshot>
   <ExtraParams/>
   <PostArgs/>

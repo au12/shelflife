@@ -1,7 +1,7 @@
 "use strict";
 /* Start-up, URL state and the back button, sync status, storage, settings, keyboard shortcuts. */
 
-const TABS = ["cull", "leaving", "keep", "history"];
+const TABS = ["cull", "leaving", "keep", "history", "issues"];
 
 /* ------------------------------------------------------------ URL state */
 
@@ -87,6 +87,10 @@ async function loadStatus() {
   renderSync();
   $("#keepCount").textContent = S.status.keep_count || "";
   $("#leavingCount").textContent = S.status.leaving.scheduled || "";
+  const arrOn = canDelete();
+  $(".tab[data-tab=issues]").hidden = !arrOn;
+  $("#issuesCount").textContent = (arrOn && S.status.issues && S.status.issues.count) || "";
+  if (!arrOn && S.tab === "issues") showTab("cull");
   return S.status;
 }
 
@@ -349,6 +353,7 @@ function measureTop() {
   bindFlows();
   bindReview();
   bindTabs();
+  bindIssues();
   bindSettings();
   document.addEventListener("keydown", onKey);
   addEventListener("popstate", () => { applyRoute().catch(fail); });

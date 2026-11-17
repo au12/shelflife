@@ -333,6 +333,33 @@ async def desktop(b):
     await page.click(".tab[data-tab=keep]")
     await page.wait_for_selector("#view-keep .page-head")
     await contrast(page, "Keep list tab")
+
+    # ---- Issues: where Plex and Sonarr/Radarr disagree
+    get(FULL + "/api/issues")  # the background check runs after each sync; make sure one has finished
+    end = time.time() + 60
+    while time.time() < end and not (get(FULL + "/api/issues") or {}).get("checked_at"):
+        time.sleep(0.5)
+    await page.click(".tab[data-tab=issues]")
+    await page.wait_for_selector("#view-issues .isec")
+    count = int(await page.text_content("#issuesCount") or 0)
+    lead = await page.text_content("#view-issues .lead")
+    check(count > 0 and str(count) in lead and "tab=issues" in page.url, f"Issues tab lists {count} issues")
+    heads = await page.locator("#view-issues .isec h2").all_text_contents()
+    check(any("Not in Radarr" in h for h in heads) and any("Same Radarr movie" in h for h in heads),
+          f"issues are grouped by kind ({len(heads)} groups)")
+    await contrast(page, "Issues tab")
+    await page.locator("#view-issues [data-ignore]").first.click()
+    await page.wait_for_timeout(400)
+    check(int(await page.text_content("#issuesCount") or 0) == count - 1, "Ignore takes one off the count")
+    await page.click("#view-issues [data-toggle-ignored]")
+    await page.locator("#view-issues [data-unignore]").first.click()
+    await page.wait_for_timeout(400)
+    check(int(await page.text_content("#issuesCount") or 0) == count, "Stop ignoring puts it back")
+    await page.locator("#view-issues .copies [data-open]").first.click()
+    await page.wait_for_selector("#drawer .caution", timeout=10000)
+    check(await page.is_disabled("#dDelete"), "the copy Radarr doesn't manage can't be deleted from its panel")
+    await page.keyboard.press("Escape")
+    await page.wait_for_timeout(300)
     await page.click(".tab[data-tab=cull]")
     await page.click("#settingsBtn")
     await page.wait_for_selector("#settings[open] #sInteg .integ")
@@ -403,6 +430,7 @@ async def lite(b):
     await page.wait_for_timeout(800)
     check(await page.locator("#dDelete, #dLeave").count() == 0 and await page.locator("text=Open in Plex").count() == 0,
           "the panel hides Delete, Leaving soon and Open in Plex")
+    check(await page.is_hidden(".tab[data-tab=issues]"), "no Issues tab without Sonarr or Radarr")
     await page.close()
 
 
